@@ -518,6 +518,8 @@ async def setup_first_admin(
 async def login_page(request: Request, error: str = "") -> HTMLResponse:
     if not has_users():
         return RedirectResponse(url="/setup", status_code=303)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "") -> HTMLResponse:
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 
