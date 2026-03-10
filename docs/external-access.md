@@ -85,3 +85,15 @@ Then run Certbot to issue cert and enforce HTTPS redirect.
 
 - In production, prefer running Uvicorn/Gunicorn as a service (systemd/container).
 - Consider adding WAF, fail2ban, and central log monitoring for hardened deployments.
+
+## 7) If enabling SSO header integration
+
+If you enable `SIEM_SSO_ENABLED=true`, make sure header claims are only injected by your trusted reverse proxy/identity gateway.
+
+- Do **not** expose Uvicorn directly to the internet when SSO headers are used.
+- Strip incoming client-supplied auth headers and re-add trusted ones at the proxy.
+- Recommended headers:
+  - `X-Auth-Request-User`
+  - `X-Auth-Request-Role`
+  - `X-Auth-Request-Amr` (must contain `mfa` when MFA is required)
+

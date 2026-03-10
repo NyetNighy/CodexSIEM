@@ -8,6 +8,8 @@
   <p><strong>Security note:</strong> tenant client secrets are not stored directly in the database. Save each secret in an environment variable and provide only the variable name below.</p>
 
   <form method="post" action="/tenants" style="display:grid;gap:8px;max-width:620px;">
+    <input name="customer_name" placeholder="Customer Name (e.g. Contoso Ltd)" required />
+    <input name="name" placeholder="Connection Display Name" required />
     <input name="name" placeholder="Display Name" required />
     <input name="tenant_id" placeholder="Tenant ID (GUID)" required />
     <input name="client_id" placeholder="App Client ID" required />
@@ -17,6 +19,11 @@
 
   <h2>Configured Tenancies</h2>
   <table border="1" cellpadding="6" cellspacing="0">
+    <thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
+    <tbody>
+    {% for t in tenants %}
+      <tr>
+        <td>{{ t['customer_name'] }}</td>
     <thead><tr><th>Name</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
     <tbody>
     {% for t in tenants %}

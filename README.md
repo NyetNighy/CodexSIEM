@@ -5,8 +5,8 @@ A lightweight **multi-tenant Microsoft 365 SIEM starter** that:
 - Connects to multiple M365 tenancies (each with its own Entra app credentials).
 - Pulls sign-in logs from Microsoft Graph (`auditLogs/signIns`).
 - Generates alerts for suspicious sign-ins (failed attempts, risky sign-ins, conditional-access issues).
-- Displays tenancy, user, and sign-in details in a dashboard.
-- Supports dashboard search by tenant, user, IP, or app.
+- Displays customer, tenancy, user, and sign-in details in a dashboard.
+- Supports dashboard search by customer, tenant, user, IP, or app, plus CSV export.
 - Supports role-based access control with **admin**, **manager**, and **user** roles.
 
 ## Quick start
@@ -19,6 +19,36 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Open: `http://localhost:8000`
+
+## Troubleshooting startup: `ModuleNotFoundError: No module named itsdangerous`
+
+If Uvicorn fails at startup with `No module named 'itsdangerous'`, your virtual environment is missing dependencies.
+
+Run:
+
+```bash
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python scripts/verify_runtime.py
+```
+
+If that still fails, recreate the venv cleanly:
+
+```bash
+deactivate || true
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/verify_runtime.py
+```
+
+Then retry:
+
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
 
 ## Role-based access (RBAC)
 
@@ -76,7 +106,7 @@ Set environment variables:
 
 Behavior:
 
-- Each alert can trigger an email with tenant/user/IP/reason context.
+- Each alert can trigger a multipart email (plain text + HTML) with customer/tenant/user/IP/reason context.
 - Email delivery is best-effort and non-blocking (ingestion continues if SMTP is unavailable).
 
 ## Customer-to-connection mapping
