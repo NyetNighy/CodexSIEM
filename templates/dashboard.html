@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>M365 SIEM Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2f;
+      --panel-soft: #16213d;
+      --text: #e9eefc;
+      --muted: #9fb0d7;
+      --line: #253459;
+      --accent: #4f7cff;
+      --accent-2: #18c7a1;
+      --danger: #ff6b6b;
+      --warn: #ffb347;
+      --shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, Segoe UI, Roboto, Arial, sans-serif; color: var(--text); background: var(--bg); min-height: 100vh; padding: 28px; }
+    .container { max-width: 1320px; margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-bottom: 18px; }
+    .title-wrap h1 { margin: 0; font-size: 30px; }
+    .subtitle { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+    .error { background: #3b1622; color: #ffd3de; border: 1px solid #8d364f; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; }
+    .card-grid { display: grid; grid-template-columns: repeat(3, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .card { background: linear-gradient(180deg, #152241, #111b34); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+    .card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+    .card .value { font-size: 28px; font-weight: 700; }
+    .controls { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+    .search-form { display: flex; gap: 8px; flex: 1; min-width: 280px; }
+    input[type="text"] { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0f1730; color: var(--text); }
+    .btn { border: 1px solid transparent; background: #1d2b50; color: var(--text); padding: 10px 13px; border-radius: 10px; text-decoration: none; cursor: pointer; font-weight: 600; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .btn.success { background: var(--accent-2); color: #06231d; }
+    .btn.subtle { border-color: var(--line); }
+    .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--panel-soft); }
+    th, td { padding: 11px 10px; border-bottom: 1px solid var(--line); font-size: 13px; text-align: left; }
+    .sev-high { color: var(--danger); font-weight: 700; text-transform: uppercase; }
+    .sev-medium { color: var(--warn); font-weight: 700; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="title-wrap">
+        <h1>Microsoft 365 Multi-Tenant SIEM</h1>
+        <p class="subtitle">Signed in as <strong>{{ user }}</strong> ({{ role }})</p>
+      </div>
+      <form method="post" action="/logout"><button class="btn subtle" type="submit">Logout</button></form>
+    </div>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <section class="card-grid">
+      <article class="card"><div class="label">Tenants</div><div class="value">{{ tenant_count }}</div></article>
+      <article class="card"><div class="label">Sign-ins</div><div class="value">{{ signin_count }}</div></article>
+      <article class="card"><div class="label">Alerts</div><div class="value">{{ alert_count }}</div></article>
+    </section>
+
+    <section class="controls">
+      <form class="search-form" method="get" action="/">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search by tenant, user, IP, or app" />
+        <button class="btn primary" type="submit">Search</button>
+      </form>
+      {% if can_manage %}
+      <form method="post" action="/sync"><button class="btn success" type="submit">Sync Now</button></form>
+      <a class="btn subtle" href="/tenants">Manage Tenants</a>
+      {% endif %}
+      {% if is_admin %}
+      <a class="btn subtle" href="/users">Manage Users</a>
+      {% endif %}
+    </section>
+
+    <section class="table-wrap">
+      <table>
+        <thead><tr><th>Alert Time</th><th>Tenancy</th><th>User</th><th>IP</th><th>Application</th><th>Sign-in Time</th><th>Severity</th><th>Reason</th><th>Error</th></tr></thead>
+        <tbody>
+          {% for row in alerts %}
+          <tr>
+            <td>{{ row["alerted_at"] }}</td><td>{{ row["tenant_id"] }}</td><td>{{ row["user_principal_name"] }}</td><td>{{ row["ip_address"] }}</td><td>{{ row["app_display_name"] }}</td><td>{{ row["signin_time"] }}</td><td class="sev-{{ row['severity'] }}">{{ row["severity"] }}</td><td>{{ row["reason"] }}</td><td>{{ row["status_error_code"] }} {{ row["status_failure_reason"] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

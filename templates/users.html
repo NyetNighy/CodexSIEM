@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Users</title></head>
+<body style="font-family:Arial,sans-serif;margin:24px;max-width:900px;">
+  <h1>Manage Platform Users</h1>
+  <p>Signed in as <strong>{{ user }}</strong> ({{ role }})</p>
+  <p>Create/update users with role-based access:</p>
+  <ul>
+    <li><strong>admin</strong>: full access</li>
+    <li><strong>manager</strong>: manage tenants + sync + dashboard</li>
+    <li><strong>user</strong>: read-only dashboard access</li>
+  </ul>
+
+  <p>Generate password values with:</p>
+  <pre>python -c "from auth import hash_password; print(hash_password('strong-password'))"</pre>
+
+  <form method="post" action="/users" style="display:grid;gap:8px;max-width:600px;">
+    <input name="username" placeholder="Username" required />
+    <select name="role" required>
+      {% for r in allowed_roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+    </select>
+    <input name="password_salt" placeholder="Password salt hex" required />
+    <input name="password_hash" placeholder="Password hash hex" required />
+    <button type="submit">Save User</button>
+  </form>
+
+  <h2>Current users</h2>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead><tr><th>Username</th><th>Role</th><th>Created</th></tr></thead>
+    <tbody>
+      {% for u in users %}<tr><td>{{ u['username'] }}</td><td>{{ u['role'] }}</td><td>{{ u['created_at'] }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+
+  <p><a href="/">Back to Dashboard</a></p>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Tenants</title></head>
+<body style="font-family:Arial,sans-serif;margin:24px;">
+  <h1>Manage M365 Tenants</h1>
+  <p>Signed in as <strong>{{ user }}</strong> ({{ role }})</p>
+  <form method="post" action="/tenants" style="display:grid;gap:8px;max-width:500px;">
+    <input name="name" placeholder="Display Name" required />
+    <input name="tenant_id" placeholder="Tenant ID (GUID)" required />
+    <input name="client_id" placeholder="App Client ID" required />
+    <input name="client_secret" placeholder="App Client Secret" required />
+    <button type="submit">Save Tenant</button>
+  </form>
+
+  <h2>Configured Tenancies</h2>
+  <ul>
+    {% for t in tenants %}<li><strong>{{ t['name'] }}</strong> — {{ t['tenant_id'] }} (added {{ t['created_at'] }})</li>{% endfor %}
+  </ul>
+
+  <a href="/">Back to Dashboard</a>
+</body>
+</html>
