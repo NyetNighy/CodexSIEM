@@ -50,6 +50,13 @@ PY
 
 After login as admin, use **Manage Users** to add manager/user accounts.
 
+
+## Microsoft 365 tenant setup guide
+
+For full step-by-step instructions on the Microsoft 365 / Entra ID side (app registration, Graph permissions, consent, and secret creation), see:
+
+- [`docs/m365-setup.md`](docs/m365-setup.md)
+
 ## Authentication and secure external access
 
 For secure access from external networks:
