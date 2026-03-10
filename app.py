@@ -1,23 +1,18 @@
-import csv
-import io
-import json
-import smtplib
 import os
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
 from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import get_admin_credentials, hash_password, verify_password
-from secret_utils import ENV_REF_PLACEHOLDER, resolve_client_secret
 from siem_core import alert_reasons
+from secret_utils import ENV_REF_PLACEHOLDER, resolve_client_secret
 
 DB_PATH = os.getenv("SIEM_DB_PATH", "siem.db")
 SYNC_MINUTES = int(os.getenv("SIEM_SYNC_MINUTES", "15"))
@@ -27,21 +22,6 @@ OPENCLAWAI_ENABLED = os.getenv("OPENCLAWAI_ENABLED", "false").lower() == "true"
 OPENCLAWAI_URL = os.getenv("OPENCLAWAI_URL", "").strip()
 OPENCLAWAI_API_KEY = os.getenv("OPENCLAWAI_API_KEY", "").strip()
 OPENCLAWAI_TIMEOUT = float(os.getenv("OPENCLAWAI_TIMEOUT", "10"))
-
-ALERT_EMAIL_ENABLED = os.getenv("ALERT_EMAIL_ENABLED", "false").lower() == "true"
-SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "").strip()
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
-SMTP_FROM = os.getenv("SMTP_FROM", "").strip()
-SMTP_TO = [x.strip() for x in os.getenv("SMTP_TO", "").split(",") if x.strip()]
-SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
-
-SSO_ENABLED = os.getenv("SIEM_SSO_ENABLED", "false").lower() == "true"
-SSO_USER_HEADER = os.getenv("SIEM_SSO_USER_HEADER", "X-Auth-Request-User")
-SSO_ROLE_HEADER = os.getenv("SIEM_SSO_ROLE_HEADER", "X-Auth-Request-Role")
-SSO_MFA_HEADER = os.getenv("SIEM_SSO_MFA_HEADER", "X-Auth-Request-Amr")
-SSO_REQUIRE_MFA = os.getenv("SIEM_SSO_REQUIRE_MFA", "true").lower() == "true"
 
 ROLE_ADMIN = "admin"
 ROLE_MANAGER = "manager"
@@ -66,7 +46,6 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS tenants (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                customer_name TEXT NOT NULL DEFAULT 'Unassigned',
                 tenant_id TEXT NOT NULL UNIQUE,
                 client_id TEXT NOT NULL,
                 client_secret TEXT NOT NULL,
@@ -85,8 +64,6 @@ def init_db() -> None:
                 status_error_code INTEGER,
                 status_failure_reason TEXT,
                 conditional_access_status TEXT,
-                location_country TEXT,
-                location_city TEXT,
                 raw_json TEXT NOT NULL,
                 UNIQUE(tenant_id, graph_id)
             );
@@ -109,35 +86,15 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 CHECK(role IN ('admin', 'manager', 'user'))
             );
-
-            CREATE TABLE IF NOT EXISTS audit_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_time TEXT NOT NULL,
-                actor TEXT NOT NULL,
-                actor_role TEXT NOT NULL,
-                action TEXT NOT NULL,
-                target TEXT,
-                outcome TEXT NOT NULL,
-                source_ip TEXT,
-                details TEXT
-            );
             """
         )
         conn.commit()
 
+        # Backward-compatible migration.
         cols = [row[1] for row in conn.execute("PRAGMA table_info(tenants)").fetchall()]
         if "client_secret_ref" not in cols:
             conn.execute("ALTER TABLE tenants ADD COLUMN client_secret_ref TEXT")
-        if "customer_name" not in cols:
-            conn.execute("ALTER TABLE tenants ADD COLUMN customer_name TEXT NOT NULL DEFAULT 'Unassigned'")
-
-        signins_cols = [row[1] for row in conn.execute("PRAGMA table_info(signins)").fetchall()]
-        if "location_country" not in signins_cols:
-            conn.execute("ALTER TABLE signins ADD COLUMN location_country TEXT")
-        if "location_city" not in signins_cols:
-            conn.execute("ALTER TABLE signins ADD COLUMN location_city TEXT")
-
-        conn.commit()
+            conn.commit()
 
 
 def utc_now_iso() -> str:
@@ -152,61 +109,7 @@ def user_is_admin(role: str) -> bool:
     return role == ROLE_ADMIN
 
 
-def audit_log(
-    actor: str,
-    actor_role: str,
-    action: str,
-    outcome: str,
-    target: str = "",
-    source_ip: str = "",
-    details: Optional[Dict[str, Any]] = None,
-) -> None:
-    with closing(db_conn()) as conn:
-        conn.execute(
-            """
-            INSERT INTO audit_logs (event_time, actor, actor_role, action, target, outcome, source_ip, details)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                utc_now_iso(),
-                actor or "unknown",
-                actor_role or "unknown",
-                action,
-                target,
-                outcome,
-                source_ip,
-                json.dumps(details or {}, ensure_ascii=False),
-            ),
-        )
-        conn.commit()
-
-
-def maybe_session_from_sso(request: Request) -> None:
-    if not SSO_ENABLED:
-        return
-    if request.session.get("user") and request.session.get("role"):
-        return
-
-    user = request.headers.get(SSO_USER_HEADER, "").strip()
-    role = request.headers.get(SSO_ROLE_HEADER, ROLE_USER).strip().lower() or ROLE_USER
-    amr = request.headers.get(SSO_MFA_HEADER, "").lower()
-
-    if not user:
-        return
-    if role not in ALLOWED_ROLES:
-        role = ROLE_USER
-
-    if SSO_REQUIRE_MFA and "mfa" not in amr:
-        audit_log(user, role, "sso_login", "denied", source_ip=request.client.host if request.client else "", details={"reason": "mfa_not_present"})
-        return
-
-    request.session["user"] = user
-    request.session["role"] = role
-    audit_log(user, role, "sso_login", "success", source_ip=request.client.host if request.client else "")
-
-
 def require_login(request: Request) -> Optional[RedirectResponse]:
-    maybe_session_from_sso(request)
     if request.session.get("user") and request.session.get("role"):
         return None
     return RedirectResponse(url="/login", status_code=303)
@@ -248,6 +151,7 @@ def bootstrap_admin_user() -> None:
             conn.commit()
 
 
+
 async def graph_token(tenant_id: str, client_id: str, client_secret: str) -> str:
     url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     data = {
@@ -259,11 +163,14 @@ async def graph_token(tenant_id: str, client_id: str, client_secret: str) -> str
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(url, data=data)
         response.raise_for_status()
-        return response.json()["access_token"]
+        payload = response.json()
+        return payload["access_token"]
 
 
 async def fetch_signins(token: str, lookback_minutes: int = 60) -> List[Dict[str, Any]]:
-    since = (datetime.now(tz=timezone.utc) - timedelta(minutes=lookback_minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    since = (datetime.now(tz=timezone.utc) - timedelta(minutes=lookback_minutes)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     url = "https://graph.microsoft.com/v1.0/auditLogs/signIns"
     params = {"$filter": f"createdDateTime ge {since}", "$top": "100"}
     headers = {"Authorization": f"Bearer {token}"}
@@ -281,103 +188,37 @@ async def fetch_signins(token: str, lookback_minutes: int = 60) -> List[Dict[str
     return records
 
 
-def render_alert_email_html(context: Dict[str, Any]) -> str:
-    template = templates.env.get_template("alert_email.html")
-    return template.render(**context)
-
-
-def send_alert_email(subject: str, body: str, html_body: str = "") -> None:
-    if not ALERT_EMAIL_ENABLED:
-        return
-    if not SMTP_HOST or not SMTP_FROM or not SMTP_TO:
-        return
-
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = SMTP_FROM
-    msg["To"] = ", ".join(SMTP_TO)
-    msg.set_content(body)
-    if html_body:
-        msg.add_alternative(html_body, subtype="html")
-
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            if SMTP_USE_TLS:
-                server.starttls()
-            if SMTP_USER:
-                server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
-    except Exception:
-        return
-
-
 def send_openclawai_alert(payload: Dict[str, Any]) -> None:
     if not OPENCLAWAI_ENABLED or not OPENCLAWAI_URL:
         return
+
     headers = {"Content-Type": "application/json"}
     if OPENCLAWAI_API_KEY:
         headers["Authorization"] = f"Bearer {OPENCLAWAI_API_KEY}"
+
     try:
         httpx.post(OPENCLAWAI_URL, json=payload, headers=headers, timeout=OPENCLAWAI_TIMEOUT)
     except Exception:
         return
 
 
-def add_impossible_travel_reason(conn: sqlite3.Connection, tenant_id: str, signin: Dict[str, Any]) -> List[str]:
-    upn = signin.get("userPrincipalName")
-    created = signin.get("createdDateTime")
-    location = signin.get("location") or {}
-    country = (location.get("countryOrRegion") or "").strip()
-    if not upn or not created or not country:
-        return []
-
-    row = conn.execute(
-        """
-        SELECT created_at, location_country
-        FROM signins
-        WHERE tenant_id = ? AND user_principal_name = ?
-        ORDER BY created_at DESC
-        LIMIT 1
-        """,
-        (tenant_id, upn),
-    ).fetchone()
-    if not row or not row["location_country"]:
-        return []
-
-    try:
-        prev_time = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
-        cur_time = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
-    except ValueError:
-        return []
-
-    if row["location_country"] != country and abs((cur_time - prev_time).total_seconds()) < 3600:
-        return [
-            f"Possible impossible travel: user moved from {row['location_country']} to {country} within 60 minutes"
-        ]
-    return []
-
-
 def persist_signins_and_alerts(tenant_id: str, signins: List[Dict[str, Any]]) -> int:
     ingested = 0
     with closing(db_conn()) as conn:
-        customer_row = conn.execute("SELECT customer_name FROM tenants WHERE tenant_id = ?", (tenant_id,)).fetchone()
-        customer_name = customer_row["customer_name"] if customer_row and customer_row["customer_name"] else "Unassigned"
-
         for signin in signins:
             graph_id = signin.get("id")
             if not graph_id:
                 continue
 
             status = signin.get("status") or {}
-            location = signin.get("location") or {}
             try:
                 conn.execute(
                     """
                     INSERT INTO signins (
                         tenant_id, graph_id, created_at, user_principal_name, ip_address,
                         app_display_name, status_error_code, status_failure_reason,
-                        conditional_access_status, location_country, location_city, raw_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        conditional_access_status, raw_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         tenant_id,
@@ -389,8 +230,6 @@ def persist_signins_and_alerts(tenant_id: str, signins: List[Dict[str, Any]]) ->
                         status.get("errorCode"),
                         status.get("failureReason"),
                         signin.get("conditionalAccessStatus"),
-                        location.get("countryOrRegion"),
-                        location.get("city"),
                         str(signin),
                     ),
                 )
@@ -398,11 +237,8 @@ def persist_signins_and_alerts(tenant_id: str, signins: List[Dict[str, Any]]) ->
             except sqlite3.IntegrityError:
                 continue
 
-            reasons = alert_reasons(signin)
-            reasons.extend(add_impossible_travel_reason(conn, tenant_id, signin))
-
-            for reason in reasons:
-                severity = "high" if any(x in reason for x in ["Failed", "Risk", "impossible travel"]) else "medium"
+            for reason in alert_reasons(signin):
+                severity = "high" if "Failed" in reason or "Risk" in reason else "medium"
                 created_at = utc_now_iso()
                 conn.execute(
                     """
@@ -411,32 +247,20 @@ def persist_signins_and_alerts(tenant_id: str, signins: List[Dict[str, Any]]) ->
                     """,
                     (tenant_id, graph_id, severity, reason, created_at),
                 )
-                payload = {
-                    "source": "codexsiem",
-                    "tenant_id": tenant_id,
-                    "customer_name": customer_name,
-                    "signins_graph_id": graph_id,
-                    "severity": severity,
-                    "reason": reason,
-                    "created_at": created_at,
-                    "user_principal_name": signin.get("userPrincipalName"),
-                    "ip_address": signin.get("ipAddress"),
-                    "app_display_name": signin.get("appDisplayName"),
-                    "signin_time": signin.get("createdDateTime"),
-                    "status": signin.get("status") or {},
-                }
-                send_openclawai_alert(payload)
-                send_alert_email(
-                    subject=f"[CodexSIEM] {severity.upper()} alert for {tenant_id}",
-                    body=(
-                        f"Customer: {customer_name}\n"
-                        f"Tenant: {tenant_id}\n"
-                        f"User: {signin.get('userPrincipalName')}\n"
-                        f"IP: {signin.get('ipAddress')}\n"
-                        f"App: {signin.get('appDisplayName')}\n"
-                        f"Reason: {reason}\n"
-                        f"Time: {created_at}"
-                    ),
+                send_openclawai_alert(
+                    {
+                        "source": "codexsiem",
+                        "tenant_id": tenant_id,
+                        "signins_graph_id": graph_id,
+                        "severity": severity,
+                        "reason": reason,
+                        "created_at": created_at,
+                        "user_principal_name": signin.get("userPrincipalName"),
+                        "ip_address": signin.get("ipAddress"),
+                        "app_display_name": signin.get("appDisplayName"),
+                        "signin_time": signin.get("createdDateTime"),
+                        "status": signin.get("status") or {},
+                    }
                 )
 
         conn.commit()
@@ -453,7 +277,9 @@ async def sync_all_tenants() -> Dict[str, Any]:
         try:
             secret = resolve_client_secret(tenant)
             if not secret:
-                raise ValueError(f"Missing client secret. Set env var '{tenant['client_secret_ref']}' or update tenant config.")
+                raise ValueError(
+                    f"Missing client secret. Set env var '{tenant['client_secret_ref']}' or update tenant config."
+                )
             token = await graph_token(tenant["tenant_id"], tenant["client_id"], secret)
             signins = await fetch_signins(token, lookback_minutes=SYNC_MINUTES)
             results["ingested"] += persist_signins_and_alerts(tenant["tenant_id"], signins)
@@ -475,7 +301,6 @@ async def login_page(request: Request, error: str = "") -> HTMLResponse:
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)) -> RedirectResponse:
-    ip = request.client.host if request.client else ""
     with closing(db_conn()) as conn:
         row = conn.execute(
             "SELECT username, role, password_salt, password_hash FROM users WHERE username = ?",
@@ -483,22 +308,18 @@ async def login(request: Request, username: str = Form(...), password: str = For
         ).fetchone()
 
     if not row:
-        audit_log(username.strip(), "unknown", "login", "failed", source_ip=ip)
         return RedirectResponse(url="/login?error=Invalid+credentials", status_code=303)
 
     if verify_password(password, row["password_salt"], row["password_hash"]):
         request.session["user"] = row["username"]
         request.session["role"] = row["role"]
-        audit_log(row["username"], row["role"], "login", "success", source_ip=ip)
         return RedirectResponse(url="/", status_code=303)
 
-    audit_log(row["username"], row["role"], "login", "failed", source_ip=ip)
     return RedirectResponse(url="/login?error=Invalid+credentials", status_code=303)
 
 
 @app.post("/logout")
 async def logout(request: Request) -> RedirectResponse:
-    audit_log(request.session.get("user", "unknown"), request.session.get("role", "unknown"), "logout", "success", source_ip=request.client.host if request.client else "")
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
 
@@ -518,19 +339,20 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
         filters = ""
         params: List[Any] = []
         if query:
-            filters = "WHERE s.tenant_id LIKE ? OR t.customer_name LIKE ? OR s.user_principal_name LIKE ? OR s.ip_address LIKE ? OR s.app_display_name LIKE ?"
+            filters = (
+                "WHERE s.tenant_id LIKE ? OR s.user_principal_name LIKE ? OR s.ip_address LIKE ? OR s.app_display_name LIKE ?"
+            )
             term = f"%{query}%"
-            params = [term, term, term, term, term]
+            params = [term, term, term, term]
 
         rows = conn.execute(
             f"""
             SELECT a.created_at AS alerted_at, a.severity, a.reason,
-                   s.tenant_id, t.customer_name, s.user_principal_name, s.ip_address,
+                   s.tenant_id, s.user_principal_name, s.ip_address,
                    s.app_display_name, s.created_at AS signin_time,
                    s.status_error_code, s.status_failure_reason
             FROM alerts a
             JOIN signins s ON s.graph_id = a.signins_graph_id AND s.tenant_id = a.tenant_id
-            JOIN tenants t ON t.tenant_id = s.tenant_id
             {filters}
             ORDER BY a.created_at DESC
             LIMIT 200
@@ -557,77 +379,6 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
     )
 
 
-@app.get("/export/alerts.csv")
-async def export_alerts_csv(request: Request, q: str = "") -> StreamingResponse:
-    auth_redirect = require_login(request)
-    if auth_redirect:
-        # Not ideal for file endpoints, but keeps auth behavior consistent.
-        return StreamingResponse(iter(["Unauthorized"]), status_code=401)
-
-    query = q.strip()
-    with closing(db_conn()) as conn:
-        filters = ""
-        params: List[Any] = []
-        if query:
-            filters = "WHERE s.tenant_id LIKE ? OR t.customer_name LIKE ? OR s.user_principal_name LIKE ? OR s.ip_address LIKE ? OR s.app_display_name LIKE ?"
-            term = f"%{query}%"
-            params = [term, term, term, term, term]
-
-        rows = conn.execute(
-            f"""
-            SELECT a.created_at AS alerted_at, t.customer_name, s.tenant_id,
-                   s.user_principal_name, s.ip_address, s.app_display_name,
-                   s.created_at AS signin_time, a.severity, a.reason,
-                   s.status_error_code, s.status_failure_reason
-            FROM alerts a
-            JOIN signins s ON s.graph_id = a.signins_graph_id AND s.tenant_id = a.tenant_id
-            JOIN tenants t ON t.tenant_id = s.tenant_id
-            {filters}
-            ORDER BY a.created_at DESC
-            LIMIT 5000
-            """,
-            params,
-        ).fetchall()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "alerted_at",
-        "customer_name",
-        "tenant_id",
-        "user_principal_name",
-        "ip_address",
-        "app_display_name",
-        "signin_time",
-        "severity",
-        "reason",
-        "status_error_code",
-        "status_failure_reason",
-    ])
-    for row in rows:
-        writer.writerow([
-            row["alerted_at"],
-            row["customer_name"],
-            row["tenant_id"],
-            row["user_principal_name"],
-            row["ip_address"],
-            row["app_display_name"],
-            row["signin_time"],
-            row["severity"],
-            row["reason"],
-            row["status_error_code"],
-            row["status_failure_reason"],
-        ])
-
-    csv_data = output.getvalue()
-    output.close()
-
-    filename = "codexsiem_alerts.csv"
-    headers = {"Content-Disposition": f"attachment; filename={filename}"}
-    return StreamingResponse(iter([csv_data]), media_type="text/csv", headers=headers)
-
-
-
 @app.get("/tenants", response_class=HTMLResponse)
 async def tenant_page(request: Request) -> HTMLResponse:
     auth_redirect = require_manage_access(request)
@@ -635,7 +386,9 @@ async def tenant_page(request: Request) -> HTMLResponse:
         return auth_redirect
 
     with closing(db_conn()) as conn:
-        tenants = conn.execute("SELECT name, customer_name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY customer_name ASC, name ASC").fetchall()
+        tenants = conn.execute(
+            "SELECT name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY name ASC"
+        ).fetchall()
     return templates.TemplateResponse(
         "tenants.html",
         {
@@ -651,7 +404,6 @@ async def tenant_page(request: Request) -> HTMLResponse:
 async def create_tenant(
     request: Request,
     name: str = Form(...),
-    customer_name: str = Form(...),
     tenant_id: str = Form(...),
     client_id: str = Form(...),
     client_secret_ref: str = Form(...),
@@ -667,14 +419,12 @@ async def create_tenant(
     with closing(db_conn()) as conn:
         conn.execute(
             """
-            INSERT OR REPLACE INTO tenants (name, customer_name, tenant_id, client_id, client_secret, client_secret_ref, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO tenants (name, tenant_id, client_id, client_secret, client_secret_ref, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), ENV_REF_PLACEHOLDER, secret_ref, utc_now_iso()),
+            (name.strip(), tenant_id.strip(), client_id.strip(), ENV_REF_PLACEHOLDER, secret_ref, utc_now_iso()),
         )
         conn.commit()
-
-    audit_log(request.session.get("user", "unknown"), request.session.get("role", "unknown"), "tenant_upsert", "success", target=tenant_id, source_ip=request.client.host if request.client else "", details={"customer_name": customer_name.strip() or "Unassigned"})
     return RedirectResponse(url="/tenants", status_code=303)
 
 
@@ -684,8 +434,7 @@ async def trigger_sync(request: Request) -> RedirectResponse:
     if auth_redirect:
         return auth_redirect
 
-    results = await sync_all_tenants()
-    audit_log(request.session.get("user", "unknown"), request.session.get("role", "unknown"), "sync", "success" if not results["errors"] else "partial", source_ip=request.client.host if request.client else "", details=results)
+    await sync_all_tenants()
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -746,32 +495,4 @@ async def create_or_update_user(
         )
         conn.commit()
 
-    audit_log(request.session.get("user", "unknown"), request.session.get("role", "unknown"), "user_upsert", "success", target=uname, source_ip=request.client.host if request.client else "", details={"assigned_role": normalized_role})
     return RedirectResponse(url="/users", status_code=303)
-
-
-@app.get("/audit", response_class=HTMLResponse)
-async def audit_page(request: Request) -> HTMLResponse:
-    auth_redirect = require_admin_access(request)
-    if auth_redirect:
-        return auth_redirect
-
-    with closing(db_conn()) as conn:
-        logs = conn.execute(
-            """
-            SELECT event_time, actor, actor_role, action, target, outcome, source_ip, details
-            FROM audit_logs
-            ORDER BY id DESC
-            LIMIT 300
-            """
-        ).fetchall()
-
-    return templates.TemplateResponse(
-        "audit.html",
-        {
-            "request": request,
-            "logs": logs,
-            "user": request.session.get("user", ""),
-            "role": request.session.get("role", ""),
-        },
-    )
