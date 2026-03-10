@@ -5,8 +5,8 @@ A lightweight **multi-tenant Microsoft 365 SIEM starter** that:
 - Connects to multiple M365 tenancies (each with its own Entra app credentials).
 - Pulls sign-in logs from Microsoft Graph (`auditLogs/signIns`).
 - Generates alerts for suspicious sign-ins (failed attempts, risky sign-ins, conditional-access issues).
-- Displays customer, tenancy, user, and sign-in details in a dashboard.
-- Supports dashboard search by customer, tenant, user, IP, or app, plus CSV export.
+- Displays tenancy, user, and sign-in details in a dashboard.
+- Supports dashboard search by tenant, user, IP, or app.
 - Supports role-based access control with **admin**, **manager**, and **user** roles.
 
 ## Quick start

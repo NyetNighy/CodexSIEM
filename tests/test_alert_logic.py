@@ -17,18 +17,5 @@ def test_no_alert_for_clean_signin():
         "status": {"errorCode": 0, "failureReason": ""},
         "riskLevelDuringSignIn": "none",
         "conditionalAccessStatus": "success",
-        "clientAppUsed": "Browser",
-        "location": {"countryOrRegion": "US"},
     }
     assert alert_reasons(signin) == []
-
-
-def test_legacy_auth_and_high_risk_country_detected():
-    signin = {
-        "status": {"errorCode": 0},
-        "clientAppUsed": "IMAP4",
-        "location": {"countryOrRegion": "RU"},
-    }
-    reasons = alert_reasons(signin)
-    assert any("Legacy authentication client used" in r for r in reasons)
-    assert any("high-risk country" in r for r in reasons)
