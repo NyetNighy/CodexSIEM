@@ -64,9 +64,8 @@
 
     <section class="controls">
       <form class="search-form" method="get" action="/">
-        <input type="text" name="q" value="{{ q }}" placeholder="Search by customer, tenant, user, IP, or app" />
+        <input type="text" name="q" value="{{ q }}" placeholder="Search by tenant, user, IP, or app" />
         <button class="btn primary" type="submit">Search</button>
-      <a class="btn subtle" href="/export/alerts.csv?q={{ q }}">Export CSV</a>
       </form>
       {% if can_manage %}
       <form method="post" action="/sync"><button class="btn success" type="submit">Sync Now</button></form>
@@ -74,17 +73,16 @@
       {% endif %}
       {% if is_admin %}
       <a class="btn subtle" href="/users">Manage Users</a>
-      <a class="btn subtle" href="/audit">Audit Logs</a>
       {% endif %}
     </section>
 
     <section class="table-wrap">
       <table>
-        <thead><tr><th>Alert Time</th><th>Customer</th><th>Tenancy</th><th>User</th><th>IP</th><th>Application</th><th>Sign-in Time</th><th>Severity</th><th>Reason</th><th>Error</th></tr></thead>
+        <thead><tr><th>Alert Time</th><th>Tenancy</th><th>User</th><th>IP</th><th>Application</th><th>Sign-in Time</th><th>Severity</th><th>Reason</th><th>Error</th></tr></thead>
         <tbody>
           {% for row in alerts %}
           <tr>
-            <td>{{ row["alerted_at"] }}</td><td>{{ row["customer_name"] }}</td><td>{{ row["tenant_id"] }}</td><td>{{ row["user_principal_name"] }}</td><td>{{ row["ip_address"] }}</td><td>{{ row["app_display_name"] }}</td><td>{{ row["signin_time"] }}</td><td class="sev-{{ row['severity'] }}">{{ row["severity"] }}</td><td>{{ row["reason"] }}</td><td>{{ row["status_error_code"] }} {{ row["status_failure_reason"] }}</td>
+            <td>{{ row["alerted_at"] }}</td><td>{{ row["tenant_id"] }}</td><td>{{ row["user_principal_name"] }}</td><td>{{ row["ip_address"] }}</td><td>{{ row["app_display_name"] }}</td><td>{{ row["signin_time"] }}</td><td class="sev-{{ row['severity'] }}">{{ row["severity"] }}</td><td>{{ row["reason"] }}</td><td>{{ row["status_error_code"] }} {{ row["status_failure_reason"] }}</td>
           </tr>
           {% endfor %}
         </tbody>
