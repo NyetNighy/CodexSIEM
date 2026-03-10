@@ -57,6 +57,14 @@ For full step-by-step instructions on the Microsoft 365 / Entra ID side (app reg
 
 - [`docs/m365-setup.md`](docs/m365-setup.md)
 
+## External access with subdomain + SSL certificate
+
+To expose CodexSIEM beyond localhost safely, follow:
+
+- [`docs/external-access.md`](docs/external-access.md)
+
+This covers DNS subdomain setup, reverse proxy, certificate issuance (Let's Encrypt), and firewall hardening.
+
 ## Authentication and secure external access
 
 For secure access from external networks:
