@@ -51,6 +51,22 @@ PY
 After login as admin, use **Manage Users** to add manager/user accounts.
 
 
+## Optional OpenClawAI integration
+
+You can forward generated SIEM alerts to an OpenClawAI system via webhook/API endpoint.
+
+Set environment variables:
+
+- `OPENCLAWAI_ENABLED=true`
+- `OPENCLAWAI_URL=https://your-openclawai.example/api/alerts`
+- `OPENCLAWAI_API_KEY=...` (optional bearer token)
+- `OPENCLAWAI_TIMEOUT=10` (seconds, optional)
+
+Behavior:
+
+- Each generated alert is posted as JSON to your OpenClawAI endpoint.
+- If OpenClawAI is unavailable, SIEM ingestion continues (non-blocking).
+
 ## Microsoft 365 tenant setup guide
 
 For full step-by-step instructions on the Microsoft 365 / Entra ID side (app registration, Graph permissions, consent, and secret creation), see:

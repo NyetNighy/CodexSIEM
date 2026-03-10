@@ -17,6 +17,10 @@ DB_PATH = os.getenv("SIEM_DB_PATH", "siem.db")
 SYNC_MINUTES = int(os.getenv("SIEM_SYNC_MINUTES", "15"))
 APP_TITLE = "M365 Multi-Tenant SIEM"
 SESSION_SECRET = os.getenv("SIEM_SESSION_SECRET", "change-me-in-production")
+OPENCLAWAI_ENABLED = os.getenv("OPENCLAWAI_ENABLED", "false").lower() == "true"
+OPENCLAWAI_URL = os.getenv("OPENCLAWAI_URL", "").strip()
+OPENCLAWAI_API_KEY = os.getenv("OPENCLAWAI_API_KEY", "").strip()
+OPENCLAWAI_TIMEOUT = float(os.getenv("OPENCLAWAI_TIMEOUT", "10"))
 
 ROLE_ADMIN = "admin"
 ROLE_MANAGER = "manager"
@@ -175,6 +179,21 @@ async def fetch_signins(token: str, lookback_minutes: int = 60) -> List[Dict[str
     return records
 
 
+def send_openclawai_alert(payload: Dict[str, Any]) -> None:
+    if not OPENCLAWAI_ENABLED or not OPENCLAWAI_URL:
+        return
+
+    headers = {"Content-Type": "application/json"}
+    if OPENCLAWAI_API_KEY:
+        headers["Authorization"] = f"Bearer {OPENCLAWAI_API_KEY}"
+
+    try:
+        httpx.post(OPENCLAWAI_URL, json=payload, headers=headers, timeout=OPENCLAWAI_TIMEOUT)
+    except Exception:
+        # Non-blocking integration: keep SIEM ingestion running even if external system fails.
+        return
+
+
 def persist_signins_and_alerts(tenant_id: str, signins: List[Dict[str, Any]]) -> int:
     ingested = 0
     with closing(db_conn()) as conn:
@@ -212,12 +231,28 @@ def persist_signins_and_alerts(tenant_id: str, signins: List[Dict[str, Any]]) ->
 
             for reason in alert_reasons(signin):
                 severity = "high" if "Failed" in reason or "Risk" in reason else "medium"
+                created_at = utc_now_iso()
                 conn.execute(
                     """
                     INSERT INTO alerts (tenant_id, signins_graph_id, severity, reason, created_at)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (tenant_id, graph_id, severity, reason, utc_now_iso()),
+                    (tenant_id, graph_id, severity, reason, created_at),
+                )
+                send_openclawai_alert(
+                    {
+                        "source": "codexsiem",
+                        "tenant_id": tenant_id,
+                        "signins_graph_id": graph_id,
+                        "severity": severity,
+                        "reason": reason,
+                        "created_at": created_at,
+                        "user_principal_name": signin.get("userPrincipalName"),
+                        "ip_address": signin.get("ipAddress"),
+                        "app_display_name": signin.get("appDisplayName"),
+                        "signin_time": signin.get("createdDateTime"),
+                        "status": signin.get("status") or {},
+                    }
                 )
 
         conn.commit()
