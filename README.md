@@ -52,6 +52,41 @@ After login as admin, use **Manage Users** to add manager/user accounts. Passwor
 
 
 
+## CSV export
+
+From the dashboard, use **Export CSV** to download current (or filtered) alerts as `codexsiem_alerts.csv`.
+
+- Endpoint: `/export/alerts.csv`
+- Supports search filter via query string: `/export/alerts.csv?q=contoso`
+
+## Alert email notifications
+
+CodexSIEM can send email notifications for generated alerts through SMTP.
+
+Set environment variables:
+
+- `ALERT_EMAIL_ENABLED=true`
+- `SMTP_HOST=smtp.example.com`
+- `SMTP_PORT=587`
+- `SMTP_USER=...` (optional)
+- `SMTP_PASSWORD=...` (optional)
+- `SMTP_FROM=siem@example.com`
+- `SMTP_TO=secops@example.com,soclead@example.com`
+- `SMTP_USE_TLS=true`
+
+Behavior:
+
+- Each alert can trigger an email with tenant/user/IP/reason context.
+- Email delivery is best-effort and non-blocking (ingestion continues if SMTP is unavailable).
+
+## Customer-to-connection mapping
+
+Each tenant connection can now be tied to a **Customer Name**.
+
+- Use **Customer Name** for the client/account (for example, `Contoso Ltd`).
+- Use **Connection Display Name** for your internal connection label (for example, `Contoso-Prod-M365`).
+- Dashboard alerts include customer name and search supports customer-based filtering.
+
 ## Securing passwords and Microsoft 365 app secrets
 
 This build hardens sensitive data handling:
@@ -68,6 +103,47 @@ export TENANT_B_CLIENT_SECRET='another-secret-value'
 ```
 
 In the tenant form, set `client_secret_ref` to `TENANT_A_CLIENT_SECRET` etc.
+
+## MFA/SSO integration (optional)
+
+You can integrate SSO/MFA using an identity-aware reverse proxy (for example Azure AD + oauth2-proxy) that injects trusted headers.
+
+Environment variables:
+
+- `SIEM_SSO_ENABLED=true`
+- `SIEM_SSO_USER_HEADER=X-Auth-Request-User`
+- `SIEM_SSO_ROLE_HEADER=X-Auth-Request-Role` (`admin`/`manager`/`user`)
+- `SIEM_SSO_MFA_HEADER=X-Auth-Request-Amr`
+- `SIEM_SSO_REQUIRE_MFA=true`
+
+Behavior:
+
+- If SSO is enabled and headers are present, CodexSIEM creates a session from those claims.
+- If MFA is required and header does not include `mfa`, access is denied and recorded in audit logs.
+
+## Stronger audit logging
+
+CodexSIEM now writes structured security audit records for:
+
+- login success/failure
+- SSO login success/denied
+- logout
+- tenant create/update
+- user create/update
+- sync operations (including partial failures)
+
+Admin users can view logs at **Audit Logs** in the dashboard (`/audit`).
+
+## Hardened detection logic
+
+Alerting rules now include:
+
+- failed sign-ins
+- sign-in risk levels
+- conditional access failures/not applied
+- legacy auth protocol usage (IMAP/POP/SMTP/EAS/other clients)
+- monitored high-risk country codes (`RU`, `KP`, `IR`)
+- simple impossible-travel heuristic (country change within 60 minutes)
 
 ## Optional OpenClawAI integration
 
@@ -134,6 +210,7 @@ Use **Manage Tenants** in the UI to add each tenancy.
 
 The dashboard search box filters alerts by:
 
+- Customer name
 - Tenant ID
 - User principal name
 - IP address
