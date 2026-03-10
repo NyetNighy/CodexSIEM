@@ -87,9 +87,10 @@ In CodexSIEM (Manager/Admin role):
    - Display Name (friendly label)
    - Tenant ID (Directory ID)
    - Client ID (Application ID)
-   - Client Secret (secret value)
+   - Secret Env Var Name (example: `TENANT_A_CLIENT_SECRET`)
 3. Save.
-4. Use **Sync Now** to test ingestion.
+4. On the server running CodexSIEM, set the env var with the real secret value (example: `export TENANT_A_CLIENT_SECRET=...`).
+5. Use **Sync Now** to test ingestion.
 
 ---
 

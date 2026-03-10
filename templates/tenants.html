@@ -4,18 +4,32 @@
 <body style="font-family:Arial,sans-serif;margin:24px;">
   <h1>Manage M365 Tenants</h1>
   <p>Signed in as <strong>{{ user }}</strong> ({{ role }})</p>
-  <form method="post" action="/tenants" style="display:grid;gap:8px;max-width:500px;">
+
+  <p><strong>Security note:</strong> tenant client secrets are not stored directly in the database. Save each secret in an environment variable and provide only the variable name below.</p>
+
+  <form method="post" action="/tenants" style="display:grid;gap:8px;max-width:620px;">
     <input name="name" placeholder="Display Name" required />
     <input name="tenant_id" placeholder="Tenant ID (GUID)" required />
     <input name="client_id" placeholder="App Client ID" required />
-    <input name="client_secret" placeholder="App Client Secret" required />
+    <input name="client_secret_ref" placeholder="Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)" required />
     <button type="submit">Save Tenant</button>
   </form>
 
   <h2>Configured Tenancies</h2>
-  <ul>
-    {% for t in tenants %}<li><strong>{{ t['name'] }}</strong> — {{ t['tenant_id'] }} (added {{ t['created_at'] }})</li>{% endfor %}
-  </ul>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead><tr><th>Name</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
+    <tbody>
+    {% for t in tenants %}
+      <tr>
+        <td>{{ t['name'] }}</td>
+        <td>{{ t['tenant_id'] }}</td>
+        <td>{{ t['client_id'] }}</td>
+        <td>{{ t['client_secret_ref'] }}</td>
+        <td>{{ t['created_at'] }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 
   <a href="/">Back to Dashboard</a>
 </body>

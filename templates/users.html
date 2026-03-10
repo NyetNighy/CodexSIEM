@@ -11,16 +11,14 @@
     <li><strong>user</strong>: read-only dashboard access</li>
   </ul>
 
-  <p>Generate password values with:</p>
-  <pre>python -c "from auth import hash_password; print(hash_password('strong-password'))"</pre>
+  <p><strong>Security note:</strong> passwords are hashed server-side with PBKDF2 and are never stored in plaintext.</p>
 
   <form method="post" action="/users" style="display:grid;gap:8px;max-width:600px;">
     <input name="username" placeholder="Username" required />
     <select name="role" required>
       {% for r in allowed_roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
     </select>
-    <input name="password_salt" placeholder="Password salt hex" required />
-    <input name="password_hash" placeholder="Password hash hex" required />
+    <input type="password" name="password" placeholder="User password" required />
     <button type="submit">Save User</button>
   </form>
 

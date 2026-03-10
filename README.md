@@ -48,8 +48,26 @@ print("SIEM_ADMIN_PASSWORD_HASH=", digest)
 PY
 ```
 
-After login as admin, use **Manage Users** to add manager/user accounts.
+After login as admin, use **Manage Users** to add manager/user accounts. Passwords are entered as plaintext in the UI but hashed server-side before storage.
 
+
+
+## Securing passwords and Microsoft 365 app secrets
+
+This build hardens sensitive data handling:
+
+- User passwords are hashed with PBKDF2-HMAC-SHA256 (salted, non-plaintext storage).
+- Tenant client secrets should be stored in environment variables (or an external secret manager) and referenced by variable name in **Manage Tenants**.
+- Tenant table stores secret references (e.g., `TENANT_A_CLIENT_SECRET`), not the raw secret values for new/updated tenants.
+
+Example environment variables:
+
+```bash
+export TENANT_A_CLIENT_SECRET='super-secret-value'
+export TENANT_B_CLIENT_SECRET='another-secret-value'
+```
+
+In the tenant form, set `client_secret_ref` to `TENANT_A_CLIENT_SECRET` etc.
 
 ## Optional OpenClawAI integration
 

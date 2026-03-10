@@ -10,8 +10,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from auth import get_admin_credentials, verify_password
+from auth import get_admin_credentials, hash_password, verify_password
 from siem_core import alert_reasons
+from secret_utils import ENV_REF_PLACEHOLDER, resolve_client_secret
 
 DB_PATH = os.getenv("SIEM_DB_PATH", "siem.db")
 SYNC_MINUTES = int(os.getenv("SIEM_SYNC_MINUTES", "15"))
@@ -48,6 +49,7 @@ def init_db() -> None:
                 tenant_id TEXT NOT NULL UNIQUE,
                 client_id TEXT NOT NULL,
                 client_secret TEXT NOT NULL,
+                client_secret_ref TEXT,
                 created_at TEXT NOT NULL
             );
 
@@ -87,6 +89,12 @@ def init_db() -> None:
             """
         )
         conn.commit()
+
+        # Backward-compatible migration.
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(tenants)").fetchall()]
+        if "client_secret_ref" not in cols:
+            conn.execute("ALTER TABLE tenants ADD COLUMN client_secret_ref TEXT")
+            conn.commit()
 
 
 def utc_now_iso() -> str:
@@ -143,6 +151,7 @@ def bootstrap_admin_user() -> None:
             conn.commit()
 
 
+
 async def graph_token(tenant_id: str, client_id: str, client_secret: str) -> str:
     url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     data = {
@@ -190,7 +199,6 @@ def send_openclawai_alert(payload: Dict[str, Any]) -> None:
     try:
         httpx.post(OPENCLAWAI_URL, json=payload, headers=headers, timeout=OPENCLAWAI_TIMEOUT)
     except Exception:
-        # Non-blocking integration: keep SIEM ingestion running even if external system fails.
         return
 
 
@@ -267,7 +275,12 @@ async def sync_all_tenants() -> Dict[str, Any]:
     for tenant in tenants:
         results["tenants"] += 1
         try:
-            token = await graph_token(tenant["tenant_id"], tenant["client_id"], tenant["client_secret"])
+            secret = resolve_client_secret(tenant)
+            if not secret:
+                raise ValueError(
+                    f"Missing client secret. Set env var '{tenant['client_secret_ref']}' or update tenant config."
+                )
+            token = await graph_token(tenant["tenant_id"], tenant["client_id"], secret)
             signins = await fetch_signins(token, lookback_minutes=SYNC_MINUTES)
             results["ingested"] += persist_signins_and_alerts(tenant["tenant_id"], signins)
         except Exception as exc:  # noqa: BLE001
@@ -373,7 +386,9 @@ async def tenant_page(request: Request) -> HTMLResponse:
         return auth_redirect
 
     with closing(db_conn()) as conn:
-        tenants = conn.execute("SELECT name, tenant_id, created_at FROM tenants ORDER BY name ASC").fetchall()
+        tenants = conn.execute(
+            "SELECT name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY name ASC"
+        ).fetchall()
     return templates.TemplateResponse(
         "tenants.html",
         {
@@ -391,19 +406,23 @@ async def create_tenant(
     name: str = Form(...),
     tenant_id: str = Form(...),
     client_id: str = Form(...),
-    client_secret: str = Form(...),
+    client_secret_ref: str = Form(...),
 ) -> RedirectResponse:
     auth_redirect = require_manage_access(request)
     if auth_redirect:
         return auth_redirect
 
+    secret_ref = client_secret_ref.strip()
+    if not secret_ref:
+        return RedirectResponse(url="/tenants", status_code=303)
+
     with closing(db_conn()) as conn:
         conn.execute(
             """
-            INSERT OR REPLACE INTO tenants (name, tenant_id, client_id, client_secret, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO tenants (name, tenant_id, client_id, client_secret, client_secret_ref, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (name.strip(), tenant_id.strip(), client_id.strip(), client_secret.strip(), utc_now_iso()),
+            (name.strip(), tenant_id.strip(), client_id.strip(), ENV_REF_PLACEHOLDER, secret_ref, utc_now_iso()),
         )
         conn.commit()
     return RedirectResponse(url="/tenants", status_code=303)
@@ -426,9 +445,7 @@ async def users_page(request: Request) -> HTMLResponse:
         return auth_redirect
 
     with closing(db_conn()) as conn:
-        users = conn.execute(
-            "SELECT username, role, created_at FROM users ORDER BY created_at ASC"
-        ).fetchall()
+        users = conn.execute("SELECT username, role, created_at FROM users ORDER BY created_at ASC").fetchall()
 
     return templates.TemplateResponse(
         "users.html",
@@ -447,8 +464,7 @@ async def create_or_update_user(
     request: Request,
     username: str = Form(...),
     role: str = Form(...),
-    password_salt: str = Form(...),
-    password_hash: str = Form(...),
+    password: str = Form(...),
 ) -> RedirectResponse:
     auth_redirect = require_admin_access(request)
     if auth_redirect:
@@ -457,6 +473,13 @@ async def create_or_update_user(
     normalized_role = role.strip().lower()
     if normalized_role not in ALLOWED_ROLES:
         return RedirectResponse(url="/users", status_code=303)
+
+    uname = username.strip()
+    pwd = password.strip()
+    if not uname or not pwd:
+        return RedirectResponse(url="/users", status_code=303)
+
+    salt_hex, digest_hex = hash_password(pwd)
 
     with closing(db_conn()) as conn:
         conn.execute(
@@ -468,7 +491,7 @@ async def create_or_update_user(
                 password_salt=excluded.password_salt,
                 password_hash=excluded.password_hash
             """,
-            (username.strip(), normalized_role, password_salt.strip(), password_hash.strip(), utc_now_iso()),
+            (uname, normalized_role, salt_hex, digest_hex, utc_now_iso()),
         )
         conn.commit()
 
