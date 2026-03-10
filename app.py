@@ -144,6 +144,11 @@ def utc_now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
 
+def has_users() -> bool:
+    with closing(db_conn()) as conn:
+        return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0
+
+
 def user_can_manage(role: str) -> bool:
     return role in {ROLE_ADMIN, ROLE_MANAGER}
 
@@ -206,6 +211,9 @@ def maybe_session_from_sso(request: Request) -> None:
 
 
 def require_login(request: Request) -> Optional[RedirectResponse]:
+    if not has_users():
+        return RedirectResponse(url="/setup", status_code=303)
+
     maybe_session_from_sso(request)
     if request.session.get("user") and request.session.get("role"):
         return None
@@ -468,6 +476,48 @@ async def startup() -> None:
     bootstrap_admin_user()
 
 
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request, error: str = "") -> HTMLResponse:
+    if has_users():
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse("setup.html", {"request": request, "error": error})
+
+
+@app.post("/setup")
+async def setup_first_admin(
+    request: Request,
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+) -> RedirectResponse:
+    if has_users():
+        return RedirectResponse(url="/login", status_code=303)
+
+    pwd = password.strip()
+    cpwd = confirm_password.strip()
+    if not pwd or pwd != cpwd:
+        return RedirectResponse(url="/setup?error=Passwords+do+not+match", status_code=303)
+
+    salt_hex, digest_hex = hash_password(pwd)
+    with closing(db_conn()) as conn:
+        conn.execute(
+            """
+            INSERT INTO users (username, role, password_salt, password_hash, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("Admin", ROLE_ADMIN, salt_hex, digest_hex, utc_now_iso()),
+        )
+        conn.commit()
+
+    request.session["user"] = "Admin"
+    request.session["role"] = ROLE_ADMIN
+    audit_log("Admin", ROLE_ADMIN, "first_admin_setup", "success", source_ip=request.client.host if request.client else "")
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "") -> HTMLResponse:
+    if not has_users():
+        return RedirectResponse(url="/setup", status_code=303)
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = "") -> HTMLResponse:
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
@@ -475,6 +525,9 @@ async def login_page(request: Request, error: str = "") -> HTMLResponse:
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)) -> RedirectResponse:
+    if not has_users():
+        return RedirectResponse(url="/setup", status_code=303)
+
     ip = request.client.host if request.client else ""
     with closing(db_conn()) as conn:
         row = conn.execute(

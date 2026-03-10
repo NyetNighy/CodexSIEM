@@ -20,6 +20,12 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 Open: `http://localhost:8000`
 
+## Pull request conflict workflow
+
+If GitHub reports merge conflicts on your PR, follow:
+
+- [`docs/pr-conflicts.md`](docs/pr-conflicts.md)
+
 ## Troubleshooting startup: `ModuleNotFoundError: No module named itsdangerous`
 
 If Uvicorn fails at startup with `No module named 'itsdangerous'`, your virtual environment is missing dependencies.
@@ -49,6 +55,14 @@ Then retry:
 ```bash
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
+
+## First startup admin setup
+
+If no users exist, the app now redirects to `/setup` and asks for the initial **Admin** account password.
+
+- Username is fixed as `Admin` for first setup.
+- After creation, you are signed in automatically.
+- You can then create additional admin/manager/user accounts from **Manage Users**.
 
 ## Role-based access (RBAC)
 
