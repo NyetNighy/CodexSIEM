@@ -56,6 +56,14 @@ Then retry:
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
+## First startup admin setup
+
+If no users exist, the app now redirects to `/setup` and asks for the initial **Admin** account password.
+
+- Username is fixed as `Admin` for first setup.
+- After creation, you are signed in automatically.
+- You can then create additional admin/manager/user accounts from **Manage Users**.
+
 ## Role-based access (RBAC)
 
 - **admin**: full access (dashboard, sync, tenant management, user management)
