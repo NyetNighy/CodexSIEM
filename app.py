@@ -51,6 +51,7 @@ ALLOWED_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_USER}
 
 app = FastAPI(title=APP_TITLE)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=SESSION_HTTPS_ONLY)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
 templates = Jinja2Templates(directory="templates")
 
 
@@ -519,6 +520,8 @@ async def setup_first_admin(
 async def login_page(request: Request, error: str = "") -> HTMLResponse:
     if not has_users():
         return RedirectResponse(url="/setup", status_code=303)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "") -> HTMLResponse:
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 
