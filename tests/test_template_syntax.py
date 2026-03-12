@@ -31,6 +31,19 @@ def test_dashboard_template_renders_with_minimal_context():
     )
 
     assert "No alerts found for the current filter." in rendered
+
+
+def test_tenants_template_renders_with_minimal_context():
+    env = _template_env()
+    template = env.get_template("tenants.html")
+
+    rendered = template.render(
+        user="Admin",
+        role="admin",
+        tenants=[],
+    )
+
+    assert "No tenants configured yet." in rendered
 from jinja2 import Environment, FileSystemLoader
 
 

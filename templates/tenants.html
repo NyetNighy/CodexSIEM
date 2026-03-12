@@ -19,6 +19,20 @@
 
   <h2>Configured Tenancies</h2>
   <table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Connection</th>
+        <th>Tenant ID</th>
+        <th>Client ID</th>
+        <th>Secret Env Var</th>
+        <th>Added</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tenants %}
+      <tr>
+        <td>{{ t['customer_name'] }}</td>
     <thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
     <tbody>
     {% for t in tenants %}
@@ -34,6 +48,11 @@
         <td>{{ t['client_secret_ref'] }}</td>
         <td>{{ t['created_at'] }}</td>
       </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">No tenants configured yet.</td>
+      </tr>
+      {% endfor %}
     {% endfor %}
     </tbody>
   </table>
