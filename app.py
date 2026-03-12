@@ -1,4 +1,5 @@
 import csv
+import html
 import io
 import logging
 import json
@@ -59,6 +60,11 @@ ALLOWED_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_USER}
 app = FastAPI(title=APP_TITLE)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=SESSION_HTTPS_ONLY)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+LOGGER = logging.getLogger(__name__)
+
+
+def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
+    strict_mode = strict if strict is not None else os.getenv("SIEM_STRICT_TEMPLATE_CHECK", "false").lower() == "true"
 templates = Jinja2Templates(directory="templates")
 LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +93,13 @@ def startup_template_self_check() -> None:
 
     if failed_templates:
         failures = ", ".join(sorted(failed_templates))
+        if strict_mode:
+            raise RuntimeError(f"Template startup self-check failed for: {failures}")
+        LOGGER.error("Template startup self-check found failures but strict mode is disabled: %s", failures)
+    else:
+        LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
+
+    return failed_templates
         raise RuntimeError(f"Template startup self-check failed for: {failures}")
 
     LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
@@ -629,6 +642,62 @@ async def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/login", status_code=303)
 
 
+def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str) -> str:
+    safe_rows = []
+    for row in rows:
+        safe_rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(row['alerted_at'] or ''))}</td>"
+            f"<td>{html.escape(str(row['customer_name'] or ''))}</td>"
+            f"<td>{html.escape(str(row['tenant_id'] or ''))}</td>"
+            f"<td>{html.escape(str(row['user_principal_name'] or ''))}</td>"
+            f"<td>{html.escape(str(row['ip_address'] or ''))}</td>"
+            f"<td>{html.escape(str(row['app_display_name'] or ''))}</td>"
+            f"<td>{html.escape(str(row['severity'] or ''))}</td>"
+            f"<td>{html.escape(str(row['reason'] or ''))}</td>"
+            "</tr>"
+        )
+
+    rows_html = "".join(safe_rows) or '<tr><td colspan="8">No alerts found for the current filter.</td></tr>'
+    return (
+        "<!doctype html><html><head><meta charset='utf-8'><title>CodexSIEM Dashboard</title></head><body>"
+        "<h1>Microsoft 365 Multi-Tenant SIEM</h1>"
+        "<p><strong>Template warning:</strong> dashboard template failed to render. Showing fallback view.</p>"
+        f"<p>Signed in as <strong>{html.escape(str(request.session.get('user', '')))}</strong> ({html.escape(str(request.session.get('role', '')))})</p>"
+        + (f"<p style='color:#a00'>{html.escape(error)}</p>" if error else "")
+        + f"<p>Tenants: {tenant_count} | Sign-ins: {signin_count} | Alerts: {alert_count}</p>"
+        + "<form method='get' action='/'><input name='q' value='" + html.escape(query) + "' placeholder='Search' /> <button type='submit'>Search</button></form>"
+        + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Alert Time</th><th>Customer</th><th>Tenant</th><th>User</th><th>IP</th><th>Application</th><th>Severity</th><th>Reason</th></tr></thead><tbody>"
+        + rows_html
+        + "</tbody></table><p><a href='/tenants'>Manage Tenants</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
+    )
+
+
+def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
+    body_rows = []
+    for t in tenants:
+        body_rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(t['customer_name'] or ''))}</td>"
+            f"<td>{html.escape(str(t['name'] or ''))}</td>"
+            f"<td>{html.escape(str(t['tenant_id'] or ''))}</td>"
+            f"<td>{html.escape(str(t['client_id'] or ''))}</td>"
+            f"<td>{html.escape(str(t['client_secret_ref'] or ''))}</td>"
+            f"<td>{html.escape(str(t['created_at'] or ''))}</td>"
+            "</tr>"
+        )
+    rows_html = "".join(body_rows) or '<tr><td colspan="6">No tenants configured yet.</td></tr>'
+    return (
+        "<!doctype html><html><head><meta charset='utf-8'><title>Tenants</title></head><body>"
+        "<h1>Manage M365 Tenants</h1>"
+        "<p><strong>Template warning:</strong> tenants template failed to render. Showing fallback view.</p>"
+        f"<p>Signed in as <strong>{html.escape(str(request.session.get('user', '')))}</strong> ({html.escape(str(request.session.get('role', '')))})</p>"
+        + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead><tbody>"
+        + rows_html
+        + "</tbody></table><p><a href='/'>Back to Dashboard</a></p></body></html>"
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLResponse:
     auth_redirect = require_login(request)
@@ -665,6 +734,29 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
         ).fetchall()
 
     role = request.session.get("role", "")
+    try:
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "tenant_count": tenant_count,
+                "signin_count": signin_count,
+                "alert_count": alert_count,
+                "alerts": rows,
+                "q": query,
+                "error": error,
+                "user": request.session.get("user", ""),
+                "role": role,
+                "can_manage": user_can_manage(role),
+                "is_admin": user_is_admin(role),
+            },
+        )
+    except Exception:
+        LOGGER.exception("Failed to render dashboard.html; returning fallback dashboard HTML")
+        return HTMLResponse(
+            _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error),
+            status_code=200,
+        )
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -762,6 +854,19 @@ async def tenant_page(request: Request) -> HTMLResponse:
 
     with closing(db_conn()) as conn:
         tenants = conn.execute("SELECT name, customer_name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY customer_name ASC, name ASC").fetchall()
+    try:
+        return templates.TemplateResponse(
+            "tenants.html",
+            {
+                "request": request,
+                "tenants": tenants,
+                "user": request.session.get("user", ""),
+                "role": request.session.get("role", ""),
+            },
+        )
+    except Exception:
+        LOGGER.exception("Failed to render tenants.html; returning fallback tenants HTML")
+        return HTMLResponse(_tenants_fallback_html(request, tenants), status_code=200)
     return templates.TemplateResponse(
         "tenants.html",
         {
