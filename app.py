@@ -6,6 +6,7 @@ import smtplib
 import traceback
 import os
 import sqlite3
+from pathlib import Path
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -21,6 +22,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from auth import get_admin_credentials, hash_password, verify_password
 from secret_utils import ENV_REF_PLACEHOLDER, resolve_client_secret
 from siem_core import alert_reasons
+
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "templates"
 
 DB_PATH = os.getenv("SIEM_DB_PATH", "siem.db")
 SYNC_MINUTES = int(os.getenv("SIEM_SYNC_MINUTES", "15"))
@@ -54,11 +58,13 @@ ALLOWED_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_USER}
 
 app = FastAPI(title=APP_TITLE)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=SESSION_HTTPS_ONLY)
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates = Jinja2Templates(directory="templates")
 LOGGER = logging.getLogger(__name__)
 
 
 def startup_template_self_check() -> None:
+    LOGGER.info("Using template directory: %s", TEMPLATES_DIR)
     template_names = [name for name in templates.env.list_templates() if name.endswith(".html")]
     failed_templates: list[str] = []
 
