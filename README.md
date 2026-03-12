@@ -18,7 +18,20 @@ pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Open: `http://localhost:8000`
+Open in browser: `http://localhost:8000` (not `0.0.0.0`).
+
+
+### Local login/session note
+
+If you run without HTTPS (typical local dev), keep session secure-cookie mode disabled:
+
+- `SIEM_SESSION_HTTPS_ONLY=false` (default)
+
+If you deploy behind HTTPS, enable it:
+
+- `SIEM_SESSION_HTTPS_ONLY=true`
+
+Using secure-only cookies on plain HTTP can cause login/setup loops or blank/unauthenticated behavior after redirects.
 
 ## Pull request conflict workflow
 
