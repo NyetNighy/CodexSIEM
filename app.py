@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import smtplib
+import traceback
 import os
 import sqlite3
 from contextlib import closing
@@ -292,6 +293,11 @@ async def fetch_signins(token: str, lookback_minutes: int = 60) -> List[Dict[str
 
 
 def render_alert_email_html(context: Dict[str, Any]) -> str:
+    try:
+        template = templates.env.get_template("alert_email.html")
+        return template.render(**context)
+    except Exception:
+        return ""
     template = templates.env.get_template("alert_email.html")
     return template.render(**context)
 
@@ -476,6 +482,32 @@ async def sync_all_tenants() -> Dict[str, Any]:
 async def startup() -> None:
     init_db()
     bootstrap_admin_user()
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    trace = traceback.format_exc()
+    try:
+        audit_log(
+            actor=request.session.get("user", "anonymous") if hasattr(request, "session") else "anonymous",
+            actor_role=request.session.get("role", "unknown") if hasattr(request, "session") else "unknown",
+            action="unhandled_exception",
+            outcome="error",
+            source_ip=request.client.host if request.client else "",
+            details={"error": str(exc), "trace": trace[-4000:]},
+        )
+    except Exception:
+        pass
+
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept:
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "message": "An internal error occurred. Check audit logs."},
+            status_code=500,
+        )
+
+    return RedirectResponse(url="/?error=Internal+server+error", status_code=303)
 
 
 @app.get("/setup", response_class=HTMLResponse)
