@@ -65,6 +65,11 @@ LOGGER = logging.getLogger(__name__)
 
 def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
     strict_mode = strict if strict is not None else os.getenv("SIEM_STRICT_TEMPLATE_CHECK", "false").lower() == "true"
+templates = Jinja2Templates(directory="templates")
+LOGGER = logging.getLogger(__name__)
+
+
+def startup_template_self_check() -> None:
     LOGGER.info("Using template directory: %s", TEMPLATES_DIR)
     template_names = [name for name in templates.env.list_templates() if name.endswith(".html")]
     failed_templates: list[str] = []
@@ -95,6 +100,11 @@ def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
         LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
 
     return failed_templates
+        raise RuntimeError(f"Template startup self-check failed for: {failures}")
+
+    LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
+templates = Jinja2Templates(directory="templates")
 
 
 def db_conn() -> sqlite3.Connection:
@@ -339,6 +349,8 @@ def render_alert_email_html(context: Dict[str, Any]) -> str:
         return template.render(**context)
     except Exception:
         return ""
+    template = templates.env.get_template("alert_email.html")
+    return template.render(**context)
 
 
 def send_alert_email(subject: str, body: str, html_body: str = "") -> None:
@@ -592,6 +604,8 @@ async def setup_first_admin(
 async def login_page(request: Request, error: str = "") -> HTMLResponse:
     if not has_users():
         return RedirectResponse(url="/setup", status_code=303)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "") -> HTMLResponse:
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 
@@ -743,6 +757,22 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
             _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error),
             status_code=200,
         )
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "tenant_count": tenant_count,
+            "signin_count": signin_count,
+            "alert_count": alert_count,
+            "alerts": rows,
+            "q": query,
+            "error": error,
+            "user": request.session.get("user", ""),
+            "role": role,
+            "can_manage": user_can_manage(role),
+            "is_admin": user_is_admin(role),
+        },
+    )
 
 
 @app.get("/export/alerts.csv")
@@ -837,6 +867,15 @@ async def tenant_page(request: Request) -> HTMLResponse:
     except Exception:
         LOGGER.exception("Failed to render tenants.html; returning fallback tenants HTML")
         return HTMLResponse(_tenants_fallback_html(request, tenants), status_code=200)
+    return templates.TemplateResponse(
+        "tenants.html",
+        {
+            "request": request,
+            "tenants": tenants,
+            "user": request.session.get("user", ""),
+            "role": request.session.get("role", ""),
+        },
+    )
 
 
 @app.post("/tenants")
