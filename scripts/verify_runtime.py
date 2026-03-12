@@ -25,6 +25,11 @@ PYTHON_SOURCES = [
     Path("startup_checks.py"),
 ]
 
+FORBIDDEN_APP_SNIPPETS = [
+    "Template startup self-check found failures but strict mode is disabled",
+    "Template syntax error during startup check",
+]
+
 
 def main() -> int:
     missing: list[str] = []
@@ -41,6 +46,13 @@ def main() -> int:
         except py_compile.PyCompileError as exc:
             syntax_errors.append(f"{source}: {exc.msg}")
 
+    app_source_issues: list[str] = []
+    app_source = Path("app.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
     if not missing and not syntax_errors:
         print("Runtime dependency and syntax check passed.")
         return 0
@@ -53,6 +65,11 @@ def main() -> int:
         print("Syntax/compile errors detected:")
         for err in syntax_errors:
             print(f" - {err}")
+
+    if app_source_issues:
+        print("App source guard errors detected:")
+        for issue in app_source_issues:
+            print(f" - {issue}")
 
     if not missing:
         print("Runtime dependency check passed.")
