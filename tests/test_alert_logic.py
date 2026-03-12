@@ -32,3 +32,5 @@ def test_legacy_auth_and_high_risk_country_detected():
     reasons = alert_reasons(signin)
     assert any("Legacy authentication client used" in r for r in reasons)
     assert any("high-risk country" in r for r in reasons)
+    }
+    assert alert_reasons(signin) == []
