@@ -65,6 +65,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
+    return run_startup_template_self_check(env=templates.env, logger=LOGGER, templates_dir=TEMPLATES_DIR, strict=strict)
     return run_startup_template_self_check(
         env=templates.env,
         logger=LOGGER,
