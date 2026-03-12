@@ -23,6 +23,7 @@ DB_PATH = os.getenv("SIEM_DB_PATH", "siem.db")
 SYNC_MINUTES = int(os.getenv("SIEM_SYNC_MINUTES", "15"))
 APP_TITLE = "M365 Multi-Tenant SIEM"
 SESSION_SECRET = os.getenv("SIEM_SESSION_SECRET", "change-me-in-production")
+SESSION_HTTPS_ONLY = os.getenv("SIEM_SESSION_HTTPS_ONLY", "false").lower() == "true"
 OPENCLAWAI_ENABLED = os.getenv("OPENCLAWAI_ENABLED", "false").lower() == "true"
 OPENCLAWAI_URL = os.getenv("OPENCLAWAI_URL", "").strip()
 OPENCLAWAI_API_KEY = os.getenv("OPENCLAWAI_API_KEY", "").strip()
@@ -49,6 +50,7 @@ ROLE_USER = "user"
 ALLOWED_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_USER}
 
 app = FastAPI(title=APP_TITLE)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=SESSION_HTTPS_ONLY)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
 templates = Jinja2Templates(directory="templates")
 
