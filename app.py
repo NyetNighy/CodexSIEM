@@ -15,6 +15,7 @@ import httpx
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from jinja2 import TemplateSyntaxError
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import get_admin_credentials, hash_password, verify_password
@@ -64,6 +65,16 @@ def startup_template_self_check() -> None:
     for template_name in template_names:
         try:
             templates.env.get_template(template_name)
+        except TemplateSyntaxError as exc:
+            failure = f"{template_name}:{exc.lineno}"
+            failed_templates.append(failure)
+            LOGGER.exception(
+                "Template syntax error during startup check for %s (file=%s, line=%s): %s",
+                template_name,
+                exc.filename or template_name,
+                exc.lineno,
+                exc.message,
+            )
         except Exception:  # noqa: BLE001
             failed_templates.append(template_name)
             LOGGER.exception("Template compilation failed during startup for %s", template_name)

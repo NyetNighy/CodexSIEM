@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from jinja2 import TemplateSyntaxError
 
 import app
 
@@ -30,3 +31,19 @@ def test_startup_template_self_check_passes(monkeypatch, caplog):
         app.startup_template_self_check()
 
     assert "Template startup self-check passed for 2 HTML templates" in caplog.text
+
+
+def test_startup_template_self_check_reports_template_syntax_line(monkeypatch, caplog):
+    monkeypatch.setattr(app.templates.env, "list_templates", lambda: ["dashboard.html"])
+
+    def _get_template(_: str):
+        raise TemplateSyntaxError("unexpected endfor", 102, name="dashboard.html", filename="templates/dashboard.html")
+
+    monkeypatch.setattr(app.templates.env, "get_template", _get_template)
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(RuntimeError, match="dashboard.html:102"):
+            app.startup_template_self_check()
+
+    assert "Template syntax error during startup check for dashboard.html" in caplog.text
+    assert "line=102" in caplog.text
