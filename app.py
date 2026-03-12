@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import json
 import smtplib
 import traceback
@@ -53,6 +54,25 @@ ALLOWED_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_USER}
 app = FastAPI(title=APP_TITLE)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=SESSION_HTTPS_ONLY)
 templates = Jinja2Templates(directory="templates")
+LOGGER = logging.getLogger(__name__)
+
+
+def startup_template_self_check() -> None:
+    template_names = [name for name in templates.env.list_templates() if name.endswith(".html")]
+    failed_templates: list[str] = []
+
+    for template_name in template_names:
+        try:
+            templates.env.get_template(template_name)
+        except Exception:  # noqa: BLE001
+            failed_templates.append(template_name)
+            LOGGER.exception("Template compilation failed during startup for %s", template_name)
+
+    if failed_templates:
+        failures = ", ".join(sorted(failed_templates))
+        raise RuntimeError(f"Template startup self-check failed for: {failures}")
+
+    LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
 
 
 def db_conn() -> sqlite3.Connection:
@@ -477,6 +497,7 @@ async def sync_all_tenants() -> Dict[str, Any]:
 
 @app.on_event("startup")
 async def startup() -> None:
+    startup_template_self_check()
     init_db()
     bootstrap_admin_user()
 
