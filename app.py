@@ -23,6 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from auth import get_admin_credentials, hash_password, verify_password
 from secret_utils import ENV_REF_PLACEHOLDER, resolve_client_secret
 from siem_core import alert_reasons
+from startup_checks import run_startup_template_self_check
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -64,6 +65,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
+    return run_startup_template_self_check(
+        env=templates.env,
+        logger=LOGGER,
+        templates_dir=TEMPLATES_DIR,
+        strict=strict,
+    )
     strict_mode = (
         strict
         if strict is not None

@@ -22,6 +22,7 @@ PYTHON_SOURCES = [
     Path("auth.py"),
     Path("secret_utils.py"),
     Path("siem_core.py"),
+    Path("startup_checks.py"),
 ]
 
 
