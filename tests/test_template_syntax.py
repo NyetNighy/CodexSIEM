@@ -31,3 +31,9 @@ def test_dashboard_template_renders_with_minimal_context():
     )
 
     assert "No alerts found for the current filter." in rendered
+from jinja2 import Environment, FileSystemLoader
+
+
+def test_dashboard_template_parses():
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.get_template("dashboard.html")

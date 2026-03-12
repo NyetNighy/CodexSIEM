@@ -73,6 +73,8 @@ def startup_template_self_check() -> None:
         raise RuntimeError(f"Template startup self-check failed for: {failures}")
 
     LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
+templates = Jinja2Templates(directory="templates")
 
 
 def db_conn() -> sqlite3.Connection:
@@ -317,6 +319,8 @@ def render_alert_email_html(context: Dict[str, Any]) -> str:
         return template.render(**context)
     except Exception:
         return ""
+    template = templates.env.get_template("alert_email.html")
+    return template.render(**context)
 
 
 def send_alert_email(subject: str, body: str, html_body: str = "") -> None:
@@ -570,6 +574,8 @@ async def setup_first_admin(
 async def login_page(request: Request, error: str = "") -> HTMLResponse:
     if not has_users():
         return RedirectResponse(url="/setup", status_code=303)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "") -> HTMLResponse:
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 
