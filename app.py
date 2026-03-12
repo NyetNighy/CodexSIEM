@@ -64,6 +64,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
+    strict_mode = (
+        strict
+        if strict is not None
+        else os.getenv("SIEM_STRICT_TEMPLATE_CHECK", "false").lower() == "true"
+    )
     strict_mode = strict if strict is not None else os.getenv("SIEM_STRICT_TEMPLATE_CHECK", "false").lower() == "true"
 templates = Jinja2Templates(directory="templates")
 LOGGER = logging.getLogger(__name__)
@@ -95,6 +100,17 @@ def startup_template_self_check() -> None:
         failures = ", ".join(sorted(failed_templates))
         if strict_mode:
             raise RuntimeError(f"Template startup self-check failed for: {failures}")
+        LOGGER.error(
+            "Template startup self-check found failures but strict mode is disabled: %s",
+            failures,
+        )
+    else:
+        LOGGER.info(
+            "Template startup self-check passed for %d HTML templates",
+            len(template_names),
+        )
+
+    return failed_templates
         LOGGER.error("Template startup self-check found failures but strict mode is disabled: %s", failures)
     else:
         LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
