@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _compile_required_targets() -> int:
     targets = [
+def _compile_preflight_targets() -> int:
+    targets = [
+        ROOT / "scripts" / "verify_runtime.py",
         ROOT / "application.py",
         ROOT / "main.py",
     ]
@@ -78,6 +81,16 @@ def main() -> int:
         minimal_status = _minimal_import_preflight()
         if minimal_status != 0:
             return minimal_status
+    compile_status = _compile_preflight_targets()
+    if compile_status != 0:
+        return compile_status
+
+    verify_cmd = [sys.executable, str(ROOT / "scripts" / "verify_runtime.py")]
+    verify = subprocess.run(verify_cmd, cwd=ROOT)
+    if verify.returncode != 0:
+        print("Preflight failed. Fix the issues above before starting uvicorn.", file=sys.stderr)
+        print("Tip: if you saw SyntaxError in scripts/verify_runtime.py, your local checkout is stale/corrupted; refresh repository files.", file=sys.stderr)
+        return verify.returncode
 
     uvicorn_cmd = [
         sys.executable,
