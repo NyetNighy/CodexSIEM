@@ -15,6 +15,9 @@ A lightweight **multi-tenant Microsoft 365 SIEM starter** that:
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# Recommended entrypoint for runtime resilience
+# Use `main:app` as the operational ASGI entrypoint (recommended for resilience).
+uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
@@ -50,6 +53,8 @@ Run:
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+# Recommended entrypoint for runtime resilience
+# Use `main:app` as the operational ASGI entrypoint (recommended for resilience).
 python scripts/verify_runtime.py
 ```
 
@@ -61,12 +66,15 @@ rm -rf .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# Recommended entrypoint for runtime resilience
+# Use `main:app` as the operational ASGI entrypoint (recommended for resilience).
 python scripts/verify_runtime.py
 ```
 
 Then retry:
 
 ```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 

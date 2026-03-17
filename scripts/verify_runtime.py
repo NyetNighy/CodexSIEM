@@ -19,6 +19,7 @@ REQUIRED = [
 
 PYTHON_SOURCES = [
     Path("app.py"),
+    Path("main.py"),
     Path("application.py"),
     Path("auth.py"),
     Path("secret_utils.py"),

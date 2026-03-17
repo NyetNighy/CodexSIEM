@@ -23,6 +23,7 @@ If you use dynamic public IP, use a dynamic DNS workflow or a cloud load balance
 Run app internally (example):
 
 ```bash
+uvicorn main:app --host 127.0.0.1 --port 8000
 uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
