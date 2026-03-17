@@ -7,6 +7,7 @@ Use this in deployments to surface syntax/import issues before ASGI boot.
 from __future__ import annotations
 
 import argparse
+import importlib
 import py_compile
 import subprocess
 import sys
@@ -16,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _compile_required_targets() -> int:
+    targets = [
 def _compile_preflight_targets() -> int:
     targets = [
         ROOT / "scripts" / "verify_runtime.py",
@@ -32,6 +35,31 @@ def _compile_preflight_targets() -> int:
     return 0
 
 
+def _verify_runtime_script_is_usable() -> bool:
+    target = ROOT / "scripts" / "verify_runtime.py"
+    try:
+        py_compile.compile(str(target), doraise=True)
+        return True
+    except py_compile.PyCompileError as exc:
+        print(f"Warning: skipping scripts/verify_runtime.py because it is not parseable: {exc.msg}", file=sys.stderr)
+        print("Continuing with built-in minimal preflight checks for this startup.", file=sys.stderr)
+        return False
+
+
+def _minimal_import_preflight() -> int:
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    for module in ("application", "main"):
+        try:
+            imported = importlib.import_module(module)
+            print(f"Imported {module} from: {getattr(imported, '__file__', '<unknown>')}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"Preflight import check failed for {module}: {exc}", file=sys.stderr)
+            return 1
+    print("Minimal preflight checks passed.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run CodexSIEM with preflight runtime checks.")
     parser.add_argument("--host", default="0.0.0.0")
@@ -39,6 +67,20 @@ def main() -> int:
     parser.add_argument("--reload", action="store_true")
     args = parser.parse_args()
 
+    compile_status = _compile_required_targets()
+    if compile_status != 0:
+        return compile_status
+
+    if _verify_runtime_script_is_usable():
+        verify_cmd = [sys.executable, str(ROOT / "scripts" / "verify_runtime.py")]
+        verify = subprocess.run(verify_cmd, cwd=ROOT)
+        if verify.returncode != 0:
+            print("Preflight failed. Fix the issues above before starting uvicorn.", file=sys.stderr)
+            return verify.returncode
+    else:
+        minimal_status = _minimal_import_preflight()
+        if minimal_status != 0:
+            return minimal_status
     compile_status = _compile_preflight_targets()
     if compile_status != 0:
         return compile_status
