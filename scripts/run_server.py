@@ -7,12 +7,29 @@ Use this in deployments to surface syntax/import issues before ASGI boot.
 from __future__ import annotations
 
 import argparse
+import py_compile
 import subprocess
 import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _compile_preflight_targets() -> int:
+    targets = [
+        ROOT / "scripts" / "verify_runtime.py",
+        ROOT / "application.py",
+        ROOT / "main.py",
+    ]
+    for target in targets:
+        try:
+            py_compile.compile(str(target), doraise=True)
+        except py_compile.PyCompileError as exc:
+            print(f"Preflight compile check failed for {target}: {exc.msg}", file=sys.stderr)
+            print("Remediation: sync your checkout and rerun startup.", file=sys.stderr)
+            return 1
+    return 0
 
 
 def main() -> int:
@@ -22,10 +39,15 @@ def main() -> int:
     parser.add_argument("--reload", action="store_true")
     args = parser.parse_args()
 
+    compile_status = _compile_preflight_targets()
+    if compile_status != 0:
+        return compile_status
+
     verify_cmd = [sys.executable, str(ROOT / "scripts" / "verify_runtime.py")]
     verify = subprocess.run(verify_cmd, cwd=ROOT)
     if verify.returncode != 0:
         print("Preflight failed. Fix the issues above before starting uvicorn.", file=sys.stderr)
+        print("Tip: if you saw SyntaxError in scripts/verify_runtime.py, your local checkout is stale/corrupted; refresh repository files.", file=sys.stderr)
         return verify.returncode
 
     uvicorn_cmd = [
