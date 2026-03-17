@@ -3,6 +3,12 @@ from pathlib import Path
 
 def test_app_entrypoint_is_thin_wrapper():
     app_source = Path("app.py").read_text()
+
+    assert "from application import *" in app_source
+    assert "def startup_template_self_check" not in app_source
+    assert "Template startup self-check found failures but strict mode is disabled" not in app_source
+    assert "Template syntax error during startup check" not in app_source
+    assert len(app_source.splitlines()) <= 20
     assert "from application import *" in app_source
 
 

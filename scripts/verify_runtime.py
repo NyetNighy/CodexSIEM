@@ -26,10 +26,13 @@ PYTHON_SOURCES = [
     Path("startup_checks.py"),
 ]
 
+FORBIDDEN_STARTUP_SNIPPETS = [
 FORBIDDEN_APP_SNIPPETS = [
     "Template startup self-check found failures but strict mode is disabled",
     "Template syntax error during startup check",
 ]
+
+ENTRYPOINT_MAX_LINES = 20
 
 
 def main() -> int:
@@ -48,6 +51,22 @@ def main() -> int:
             syntax_errors.append(f"{source}: {exc.msg}")
 
     app_source_issues: list[str] = []
+
+    entrypoint_source = Path("app.py").read_text()
+    if "from application import *" not in entrypoint_source:
+        app_source_issues.append("app.py must import and re-export from application.py")
+    if len(entrypoint_source.splitlines()) > ENTRYPOINT_MAX_LINES:
+        app_source_issues.append("app.py entrypoint wrapper is too large; keep it thin to avoid merge indentation regressions")
+    for snippet in FORBIDDEN_STARTUP_SNIPPETS:
+        if snippet in entrypoint_source:
+            app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    app_impl_source = Path("application.py").read_text()
+    for snippet in FORBIDDEN_STARTUP_SNIPPETS:
+        if snippet in app_impl_source:
+            app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
     app_source = Path("application.py").read_text()
     for snippet in FORBIDDEN_APP_SNIPPETS:
         if snippet in app_source:
