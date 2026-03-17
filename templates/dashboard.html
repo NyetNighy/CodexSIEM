@@ -68,6 +68,11 @@
         <button class="btn primary" type="submit">Search</button>
       </form>
       <a class="btn subtle" href="/export/alerts.csv?q={{ q }}">Export CSV</a>
+      <a class="btn subtle" href="/tenants">Connect M365 Tenant</a>
+      {% if can_manage %}
+      <form method="post" action="/sync"><button class="btn success" type="submit">Sync Now</button></form>
+      {% else %}
+      <span class="subtitle">Tenant changes require manager/admin role.</span>
       <a class="btn subtle" href="/export/alerts.csv?q={{ q }}">Export CSV</a>
         <input type="text" name="q" value="{{ q }}" placeholder="Search by tenant, user, IP, or app" />
         <button class="btn primary" type="submit">Search</button>
