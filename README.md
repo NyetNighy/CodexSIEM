@@ -17,6 +17,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 # Recommended entrypoint for runtime resilience
 # Use `main:app` as the operational ASGI entrypoint (recommended for resilience).
+python scripts/run_server.py --host 0.0.0.0 --port 8000
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
@@ -80,6 +81,11 @@ python scripts/verify_runtime.py
 Then retry:
 
 ```bash
+python scripts/run_server.py --host 0.0.0.0 --port 8000
+```
+
+If you still want to call Uvicorn directly, run `python scripts/verify_runtime.py` immediately before `uvicorn main:app` to detect stale or malformed local files first.
+
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
