@@ -1,5 +1,6 @@
 """Simple runtime dependency and syntax check for CodexSIEM."""
 
+import ast
 import importlib
 import sys
 import py_compile
@@ -43,6 +44,24 @@ FORBIDDEN_APP_SNIPPETS = [
 ENTRYPOINT_MAX_LINES = 20
 
 
+def _validate_dashboard_signature(source: str) -> list[str]:
+    issues: list[str] = []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return [f"application.py AST parse failed: {exc}"]
+
+    dashboard_nodes = [n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "dashboard"]
+    if not dashboard_nodes:
+        return ["dashboard() function not found in application.py"]
+
+    node = dashboard_nodes[0]
+    arg_names = [a.arg for a in node.args.args]
+    if "info" not in arg_names:
+        issues.append("dashboard() is missing expected 'info' parameter; deployed code may be stale")
+    return issues
+
+
 def main() -> int:
     missing: list[str] = []
     for module in REQUIRED:
@@ -71,6 +90,7 @@ def main() -> int:
             app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
 
     app_impl_source = Path("application.py").read_text()
+    app_source_issues.extend(_validate_dashboard_signature(app_impl_source))
     for snippet in FORBIDDEN_STARTUP_SNIPPETS:
         if snippet in app_impl_source:
             app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
