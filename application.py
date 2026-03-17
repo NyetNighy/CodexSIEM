@@ -641,6 +641,7 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str, info: str = "") -> str:
+    """Render a minimal dashboard when Jinja template rendering fails."""
 def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str) -> str:
     safe_rows = []
     for row in rows:
@@ -676,6 +677,7 @@ def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: in
 
 
 def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
+    """Render tenant management fallback HTML when templates are unavailable."""
     body_rows = []
     for t in tenants:
         body_rows.append(
