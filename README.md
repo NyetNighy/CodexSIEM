@@ -32,6 +32,7 @@ If you deploy behind HTTPS, enable it:
 - `SIEM_SESSION_HTTPS_ONLY=true`
 
 Using secure-only cookies on plain HTTP can cause login/setup loops or blank/unauthenticated behavior after redirects.
+Open: `http://localhost:8000`
 
 ## Pull request conflict workflow
 
