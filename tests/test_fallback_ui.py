@@ -15,4 +15,5 @@ def test_tenants_fallback_includes_connect_form():
     html = application._tenants_fallback_html(request, [])
     assert "fallback form" in html
     assert "<form method='post' action='/tenants'" in html
+    assert "name='client_secret'" in html
     assert "name='client_secret_ref'" in html

@@ -5,11 +5,17 @@
   <h1>Manage M365 Tenants</h1>
   <p>Signed in as <strong>{{ user }}</strong> ({{ role }})</p>
 
+  <p><strong>Secret configuration:</strong> you can paste a Client Secret Value/ID directly below, or provide an environment variable name. If both are provided, the direct secret is used.</p>
   <p><strong>Security note:</strong> tenant client secrets are not stored directly in the database. Save each secret in an environment variable and provide only the variable name below.</p>
 
   <form method="post" action="/tenants" style="display:grid;gap:8px;max-width:620px;">
     <input name="customer_name" placeholder="Customer Name (e.g. Contoso Ltd)" required />
     <input name="name" placeholder="Connection Display Name" required />
+    <input name="tenant_id" placeholder="Tenant ID (GUID)" required />
+    <input name="client_id" placeholder="App Client ID" required />
+    <input name="client_secret" placeholder="Client Secret Value or Secret ID (stored in DB)" />
+    <div style="text-align:center;color:#666">or</div>
+    <input name="client_secret_ref" placeholder="Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)" />
     <input name="name" placeholder="Display Name" required />
     <input name="tenant_id" placeholder="Tenant ID (GUID)" required />
     <input name="client_id" placeholder="App Client ID" required />
@@ -25,6 +31,7 @@
         <th>Connection</th>
         <th>Tenant ID</th>
         <th>Client ID</th>
+        <th>Secret Source</th>
         <th>Secret Env Var</th>
         <th>Added</th>
       </tr>
@@ -33,6 +40,10 @@
       {% for t in tenants %}
       <tr>
         <td>{{ t['customer_name'] }}</td>
+        <td>{{ t['name'] }}</td>
+        <td>{{ t['tenant_id'] }}</td>
+        <td>{{ t['client_id'] }}</td>
+        <td>{{ t['secret_source'] }}</td>
     <thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
     <tbody>
     {% for t in tenants %}

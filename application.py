@@ -4,6 +4,7 @@ import io
 import logging
 import json
 import smtplib
+import subprocess
 import traceback
 import os
 import sqlite3
@@ -36,6 +37,8 @@ OPENCLAWAI_ENABLED = os.getenv("OPENCLAWAI_ENABLED", "false").lower() == "true"
 OPENCLAWAI_URL = os.getenv("OPENCLAWAI_URL", "").strip()
 OPENCLAWAI_API_KEY = os.getenv("OPENCLAWAI_API_KEY", "").strip()
 OPENCLAWAI_TIMEOUT = float(os.getenv("OPENCLAWAI_TIMEOUT", "10"))
+GITHUB_REPO = os.getenv("SIEM_GITHUB_REPO", "").strip()
+GITHUB_BRANCH = os.getenv("SIEM_GITHUB_BRANCH", "main").strip() or "main"
 
 ALERT_EMAIL_ENABLED = os.getenv("ALERT_EMAIL_ENABLED", "false").lower() == "true"
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
@@ -65,6 +68,45 @@ LOGGER = logging.getLogger(__name__)
 
 def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
     return run_startup_template_self_check(env=templates.env, logger=LOGGER, templates_dir=TEMPLATES_DIR, strict=strict)
+
+
+def _local_git_commit() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=BASE_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def check_github_update_status() -> str:
+    if not GITHUB_REPO:
+        return "Update check is not configured. Set SIEM_GITHUB_REPO (example: owner/repo)."
+
+    try:
+        resp = httpx.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/commits/{GITHUB_BRANCH}",
+            timeout=10,
+            headers={"Accept": "application/vnd.github+json"},
+        )
+        resp.raise_for_status()
+        remote_sha = (resp.json() or {}).get("sha", "")
+    except Exception as exc:  # noqa: BLE001
+        return f"GitHub update check failed: {exc}"
+
+    local_sha = _local_git_commit()
+    if not local_sha:
+        return f"Latest GitHub commit on {GITHUB_REPO}@{GITHUB_BRANCH}: {remote_sha[:12]} (local git commit unavailable)."
+
+    if remote_sha and local_sha == remote_sha:
+        return f"System is up to date with {GITHUB_REPO}@{GITHUB_BRANCH} ({local_sha[:12]})."
+
+    return f"Update available. Local: {local_sha[:12]} | GitHub: {remote_sha[:12]} ({GITHUB_REPO}@{GITHUB_BRANCH})."
 
 
 def db_conn() -> sqlite3.Connection:
@@ -598,6 +640,7 @@ async def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/login", status_code=303)
 
 
+def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str, info: str = "") -> str:
 def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str) -> str:
     safe_rows = []
     for row in rows:
@@ -621,10 +664,12 @@ def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: in
         "<p><strong>Template warning:</strong> dashboard template failed to render. Showing fallback view.</p>"
         f"<p>Signed in as <strong>{html.escape(str(request.session.get('user', '')))}</strong> ({html.escape(str(request.session.get('role', '')))})</p>"
         + (f"<p style='color:#a00'>{html.escape(error)}</p>" if error else "")
+        + (f"<p style='color:#0a5'>{html.escape(info)}</p>" if info else "")
         + f"<p>Tenants: {tenant_count} | Sign-ins: {signin_count} | Alerts: {alert_count}</p>"
         + "<form method='get' action='/'><input name='q' value='" + html.escape(query) + "' placeholder='Search' /> <button type='submit'>Search</button></form>"
         + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Alert Time</th><th>Customer</th><th>Tenant</th><th>User</th><th>IP</th><th>Application</th><th>Severity</th><th>Reason</th></tr></thead><tbody>"
         + rows_html
+        + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p><form method='post' action='/check-updates'><button type='submit'>Check GitHub Updates</button></form></body></html>"
         + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
         + "</tbody></table><p><a href='/tenants'>Manage Tenants</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
     )
@@ -639,6 +684,7 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
             f"<td>{html.escape(str(t['name'] or ''))}</td>"
             f"<td>{html.escape(str(t['tenant_id'] or ''))}</td>"
             f"<td>{html.escape(str(t['client_id'] or ''))}</td>"
+            f"<td>{html.escape(str(t['secret_source'] or ''))}</td>"
             f"<td>{html.escape(str(t['client_secret_ref'] or ''))}</td>"
             f"<td>{html.escape(str(t['created_at'] or ''))}</td>"
             "</tr>"
@@ -655,6 +701,12 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
         "<input name='name' placeholder='Connection Display Name' required />"
         "<input name='tenant_id' placeholder='Tenant ID (GUID)' required />"
         "<input name='client_id' placeholder='App Client ID' required />"
+        "<input name='client_secret' placeholder='Client Secret Value or Secret ID (stored in DB)' />"
+        "<div>or</div>"
+        "<input name='client_secret_ref' placeholder='Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)' />"
+        "<button type='submit'>Save Tenant</button>"
+        "</form>"
+        + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Source</th><th>Added</th></tr></thead><tbody>"
         "<input name='client_secret_ref' placeholder='Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)' required />"
         "<button type='submit'>Save Tenant</button>"
         "</form>"
@@ -665,6 +717,7 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
 
 
 @app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request, q: str = "", error: str = "", info: str = "") -> HTMLResponse:
 async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLResponse:
     auth_redirect = require_login(request)
     if auth_redirect:
@@ -711,6 +764,7 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
                 "alerts": rows,
                 "q": query,
                 "error": error,
+                "info": info,
                 "user": request.session.get("user", ""),
                 "role": role,
                 "can_manage": user_can_manage(role),
@@ -720,6 +774,7 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
     except Exception:
         LOGGER.exception("Failed to render dashboard.html; returning fallback dashboard HTML")
         return HTMLResponse(
+            _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error, info),
             _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error),
             status_code=200,
         )
@@ -803,6 +858,26 @@ async def tenant_page(request: Request) -> HTMLResponse:
         return auth_redirect
 
     with closing(db_conn()) as conn:
+        tenants = conn.execute(
+            """
+            SELECT
+                name,
+                customer_name,
+                tenant_id,
+                client_id,
+                client_secret_ref,
+                client_secret,
+                CASE
+                    WHEN COALESCE(TRIM(client_secret_ref), '') <> '' THEN 'Env Var: ' || client_secret_ref
+                    WHEN COALESCE(TRIM(client_secret), '') <> '' AND client_secret <> ? THEN 'Stored in DB'
+                    ELSE 'Not configured'
+                END AS secret_source,
+                created_at
+            FROM tenants
+            ORDER BY customer_name ASC, name ASC
+            """,
+            (ENV_REF_PLACEHOLDER,),
+        ).fetchall()
         tenants = conn.execute("SELECT name, customer_name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY customer_name ASC, name ASC").fetchall()
     try:
         return templates.TemplateResponse(
@@ -826,6 +901,8 @@ async def create_tenant(
     customer_name: str = Form(...),
     tenant_id: str = Form(...),
     client_id: str = Form(...),
+    client_secret_ref: str = Form(""),
+    client_secret: str = Form(""),
     client_secret_ref: str = Form(...),
 ) -> RedirectResponse:
     auth_redirect = require_manage_access(request)
@@ -833,6 +910,12 @@ async def create_tenant(
         return auth_redirect
 
     secret_ref = client_secret_ref.strip()
+    secret_value = client_secret.strip()
+    if not secret_ref and not secret_value:
+        return RedirectResponse(url="/tenants", status_code=303)
+
+    secret_to_store = secret_value or ENV_REF_PLACEHOLDER
+
     if not secret_ref:
         return RedirectResponse(url="/tenants", status_code=303)
 
@@ -842,6 +925,7 @@ async def create_tenant(
             INSERT OR REPLACE INTO tenants (name, customer_name, tenant_id, client_id, client_secret, client_secret_ref, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
+            (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), secret_to_store, secret_ref, utc_now_iso()),
             (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), ENV_REF_PLACEHOLDER, secret_ref, utc_now_iso()),
         )
         conn.commit()
@@ -859,6 +943,26 @@ async def trigger_sync(request: Request) -> RedirectResponse:
     results = await sync_all_tenants()
     audit_log(request.session.get("user", "unknown"), request.session.get("role", "unknown"), "sync", "success" if not results["errors"] else "partial", source_ip=request.client.host if request.client else "", details=results)
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/check-updates")
+async def check_updates(request: Request) -> RedirectResponse:
+    auth_redirect = require_login(request)
+    if auth_redirect:
+        return auth_redirect
+
+    status = check_github_update_status()
+    audit_log(
+        request.session.get("user", "unknown"),
+        request.session.get("role", "unknown"),
+        "check_updates",
+        "success",
+        source_ip=request.client.host if request.client else "",
+        details={"status": status},
+    )
+    return RedirectResponse(url='/?info=' + httpx.QueryParams({'v': status})['v'], status_code=303)
+
+
 
 
 @app.get("/users", response_class=HTMLResponse)
