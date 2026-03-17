@@ -18,6 +18,7 @@ pip install -r requirements.txt
 # Recommended entrypoint for runtime resilience
 # Use `main:app` as the operational ASGI entrypoint (recommended for resilience).
 uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Open in browser: `http://localhost:8000` (not `0.0.0.0`).
@@ -40,6 +41,7 @@ Using secure-only cookies on plain HTTP can cause login/setup loops or blank/una
 For a direct tenant-side Entra app registration walkthrough, see:
 
 - [`docs/m365-app-setup.md`](docs/m365-app-setup.md)
+Open: `http://localhost:8000`
 
 ## Pull request conflict workflow
 
@@ -79,6 +81,7 @@ Then retry:
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 ## First startup admin setup
