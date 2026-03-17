@@ -1,10 +1,3 @@
-"""Stable ASGI entrypoint wrapper.
-
-Keep this file intentionally tiny so `uvicorn app:app` stays resilient to
-merge-conflict indentation regressions in the main implementation module.
-"""
-
-from application import *  # noqa: F401,F403
 import csv
 import html
 import io
@@ -24,7 +17,6 @@ import httpx
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
-from jinja2 import TemplateSyntaxError
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import get_admin_credentials, hash_password, verify_password
@@ -73,69 +65,6 @@ LOGGER = logging.getLogger(__name__)
 
 def startup_template_self_check(strict: Optional[bool] = None) -> List[str]:
     return run_startup_template_self_check(env=templates.env, logger=LOGGER, templates_dir=TEMPLATES_DIR, strict=strict)
-    return run_startup_template_self_check(
-        env=templates.env,
-        logger=LOGGER,
-        templates_dir=TEMPLATES_DIR,
-        strict=strict,
-    )
-    strict_mode = (
-        strict
-        if strict is not None
-        else os.getenv("SIEM_STRICT_TEMPLATE_CHECK", "false").lower() == "true"
-    )
-    strict_mode = strict if strict is not None else os.getenv("SIEM_STRICT_TEMPLATE_CHECK", "false").lower() == "true"
-templates = Jinja2Templates(directory="templates")
-LOGGER = logging.getLogger(__name__)
-
-
-def startup_template_self_check() -> None:
-    LOGGER.info("Using template directory: %s", TEMPLATES_DIR)
-    template_names = [name for name in templates.env.list_templates() if name.endswith(".html")]
-    failed_templates: list[str] = []
-
-    for template_name in template_names:
-        try:
-            templates.env.get_template(template_name)
-        except TemplateSyntaxError as exc:
-            failure = f"{template_name}:{exc.lineno}"
-            failed_templates.append(failure)
-            LOGGER.exception(
-                "Template syntax error during startup check for %s (file=%s, line=%s): %s",
-                template_name,
-                exc.filename or template_name,
-                exc.lineno,
-                exc.message,
-            )
-        except Exception:  # noqa: BLE001
-            failed_templates.append(template_name)
-            LOGGER.exception("Template compilation failed during startup for %s", template_name)
-
-    if failed_templates:
-        failures = ", ".join(sorted(failed_templates))
-        if strict_mode:
-            raise RuntimeError(f"Template startup self-check failed for: {failures}")
-        LOGGER.error(
-            "Template startup self-check found failures but strict mode is disabled: %s",
-            failures,
-        )
-    else:
-        LOGGER.info(
-            "Template startup self-check passed for %d HTML templates",
-            len(template_names),
-        )
-
-    return failed_templates
-        LOGGER.error("Template startup self-check found failures but strict mode is disabled: %s", failures)
-    else:
-        LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
-
-    return failed_templates
-        raise RuntimeError(f"Template startup self-check failed for: {failures}")
-
-    LOGGER.info("Template startup self-check passed for %d HTML templates", len(template_names))
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
-templates = Jinja2Templates(directory="templates")
 
 
 def db_conn() -> sqlite3.Connection:
@@ -380,8 +309,6 @@ def render_alert_email_html(context: Dict[str, Any]) -> str:
         return template.render(**context)
     except Exception:
         return ""
-    template = templates.env.get_template("alert_email.html")
-    return template.render(**context)
 
 
 def send_alert_email(subject: str, body: str, html_body: str = "") -> None:
@@ -635,8 +562,6 @@ async def setup_first_admin(
 async def login_page(request: Request, error: str = "") -> HTMLResponse:
     if not has_users():
         return RedirectResponse(url="/setup", status_code=303)
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = "") -> HTMLResponse:
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 
@@ -788,22 +713,6 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
             _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error),
             status_code=200,
         )
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "tenant_count": tenant_count,
-            "signin_count": signin_count,
-            "alert_count": alert_count,
-            "alerts": rows,
-            "q": query,
-            "error": error,
-            "user": request.session.get("user", ""),
-            "role": role,
-            "can_manage": user_can_manage(role),
-            "is_admin": user_is_admin(role),
-        },
-    )
 
 
 @app.get("/export/alerts.csv")
@@ -898,15 +807,6 @@ async def tenant_page(request: Request) -> HTMLResponse:
     except Exception:
         LOGGER.exception("Failed to render tenants.html; returning fallback tenants HTML")
         return HTMLResponse(_tenants_fallback_html(request, tenants), status_code=200)
-    return templates.TemplateResponse(
-        "tenants.html",
-        {
-            "request": request,
-            "tenants": tenants,
-            "user": request.session.get("user", ""),
-            "role": request.session.get("role", ""),
-        },
-    )
 
 
 @app.post("/tenants")

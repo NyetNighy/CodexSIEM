@@ -19,6 +19,7 @@ REQUIRED = [
 
 PYTHON_SOURCES = [
     Path("app.py"),
+    Path("application.py"),
     Path("auth.py"),
     Path("secret_utils.py"),
     Path("siem_core.py"),
@@ -47,6 +48,12 @@ def main() -> int:
             syntax_errors.append(f"{source}: {exc.msg}")
 
     app_source_issues: list[str] = []
+    app_source = Path("application.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
     app_source = Path("app.py").read_text()
     for snippet in FORBIDDEN_APP_SNIPPETS:
         if snippet in app_source:
