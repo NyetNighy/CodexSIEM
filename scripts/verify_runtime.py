@@ -1,6 +1,13 @@
 """Simple runtime dependency and syntax check for CodexSIEM."""
 
 import importlib
+import sys
+import py_compile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 import py_compile
 from pathlib import Path
 """Simple runtime dependency check for CodexSIEM."""
@@ -52,6 +59,7 @@ def main() -> int:
             syntax_errors.append(f"{source}: {exc.msg}")
 
     app_source_issues: list[str] = []
+    import_errors: list[str] = []
 
     entrypoint_source = Path("app.py").read_text()
     if "from application import *" not in entrypoint_source:
@@ -67,6 +75,14 @@ def main() -> int:
         if snippet in app_impl_source:
             app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
 
+    for module in ("application", "main"):
+        try:
+            imported = importlib.import_module(module)
+            print(f"Imported {module} from: {getattr(imported, '__file__', '<unknown>')}")
+        except Exception as exc:
+            import_errors.append(f"{module}: {exc}")
+
+    if not missing and not syntax_errors and not app_source_issues and not import_errors:
     if not missing and not syntax_errors and not app_source_issues:
     app_source = Path("application.py").read_text()
     for snippet in FORBIDDEN_APP_SNIPPETS:
@@ -96,6 +112,11 @@ def main() -> int:
     if app_source_issues:
         print("App source guard errors detected:")
         for issue in app_source_issues:
+            print(f" - {issue}")
+
+    if import_errors:
+        print("Import errors detected:")
+        for issue in import_errors:
             print(f" - {issue}")
 
     if not missing:
