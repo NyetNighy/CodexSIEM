@@ -10,3 +10,7 @@ def test_core_python_files_compile_without_syntax_errors():
 
 def test_main_module_imports_without_errors():
     __import__("main")
+    for source in [Path("app.py"), Path("application.py"), Path("auth.py"), Path("secret_utils.py"), Path("siem_core.py"), Path("startup_checks.py")]:
+    for source in [Path("app.py"), Path("auth.py"), Path("secret_utils.py"), Path("siem_core.py"), Path("startup_checks.py")]:
+    for source in [Path("app.py"), Path("auth.py"), Path("secret_utils.py"), Path("siem_core.py")]:
+        py_compile.compile(str(source), doraise=True)
