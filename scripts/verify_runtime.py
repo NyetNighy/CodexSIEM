@@ -9,6 +9,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+import py_compile
+from pathlib import Path
+"""Simple runtime dependency check for CodexSIEM."""
+
+import importlib
+import sys
 
 REQUIRED = [
     "fastapi",
@@ -30,6 +36,7 @@ PYTHON_SOURCES = [
 ]
 
 FORBIDDEN_STARTUP_SNIPPETS = [
+FORBIDDEN_APP_SNIPPETS = [
     "Template startup self-check found failures but strict mode is disabled",
     "Template syntax error during startup check",
 ]
@@ -96,6 +103,20 @@ def main() -> int:
             import_errors.append(f"{module}: {exc}")
 
     if not missing and not syntax_errors and not app_source_issues and not import_errors:
+    if not missing and not syntax_errors and not app_source_issues:
+    app_source = Path("application.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
+    app_source = Path("app.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
+    if not missing and not syntax_errors:
         print("Runtime dependency and syntax check passed.")
         return 0
 
@@ -118,6 +139,12 @@ def main() -> int:
         for issue in import_errors:
             print(f" - {issue}")
 
+    if not missing:
+        print("Runtime dependency check passed.")
+        return 0
+
+    print("Missing modules:", ", ".join(missing))
+    print("Run: pip install -r requirements.txt")
     return 1
 
 
