@@ -625,6 +625,7 @@ def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: in
         + "<form method='get' action='/'><input name='q' value='" + html.escape(query) + "' placeholder='Search' /> <button type='submit'>Search</button></form>"
         + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Alert Time</th><th>Customer</th><th>Tenant</th><th>User</th><th>IP</th><th>Application</th><th>Severity</th><th>Reason</th></tr></thead><tbody>"
         + rows_html
+        + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
         + "</tbody></table><p><a href='/tenants'>Manage Tenants</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
     )
 
@@ -648,6 +649,15 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
         "<h1>Manage M365 Tenants</h1>"
         "<p><strong>Template warning:</strong> tenants template failed to render. Showing fallback view.</p>"
         f"<p>Signed in as <strong>{html.escape(str(request.session.get('user', '')))}</strong> ({html.escape(str(request.session.get('role', '')))})</p>"
+        "<p>You can still connect a Microsoft 365 tenant using this fallback form.</p>"
+        "<form method='post' action='/tenants' style='display:grid;gap:8px;max-width:620px;margin-bottom:12px;'>"
+        "<input name='customer_name' placeholder='Customer Name (e.g. Contoso Ltd)' required />"
+        "<input name='name' placeholder='Connection Display Name' required />"
+        "<input name='tenant_id' placeholder='Tenant ID (GUID)' required />"
+        "<input name='client_id' placeholder='App Client ID' required />"
+        "<input name='client_secret_ref' placeholder='Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)' required />"
+        "<button type='submit'>Save Tenant</button>"
+        "</form>"
         + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead><tbody>"
         + rows_html
         + "</tbody></table><p><a href='/'>Back to Dashboard</a></p></body></html>"
