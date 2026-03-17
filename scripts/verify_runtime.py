@@ -3,6 +3,10 @@
 import importlib
 import py_compile
 from pathlib import Path
+"""Simple runtime dependency check for CodexSIEM."""
+
+import importlib
+import sys
 
 REQUIRED = [
     "fastapi",
@@ -50,6 +54,13 @@ def main() -> int:
             app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
 
     if not missing and not syntax_errors and not app_source_issues:
+    app_source = Path("app.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
+    if not missing and not syntax_errors:
         print("Runtime dependency and syntax check passed.")
         return 0
 
@@ -67,6 +78,12 @@ def main() -> int:
         for issue in app_source_issues:
             print(f" - {issue}")
 
+    if not missing:
+        print("Runtime dependency check passed.")
+        return 0
+
+    print("Missing modules:", ", ".join(missing))
+    print("Run: pip install -r requirements.txt")
     return 1
 
 
