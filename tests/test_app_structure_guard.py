@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 
@@ -25,6 +26,21 @@ def test_main_entrypoint_is_thin_wrapper():
 
     assert "from application import *" in main_source
     assert len(main_source.splitlines()) <= 20
+
+
+def test_dashboard_signature_guard():
+    app_impl_source = Path("application.py").read_text()
+    tree = ast.parse(app_impl_source)
+
+    dashboard_nodes = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "dashboard"
+    ]
+    assert len(dashboard_nodes) == 1
+
+    arg_names = [arg.arg for arg in dashboard_nodes[0].args.args]
+    assert arg_names == ["request", "q", "error", "info"]
 def test_app_does_not_inline_startup_template_check_logic():
     app_source = Path("app.py").read_text()
 
