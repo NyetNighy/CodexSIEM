@@ -41,6 +41,12 @@ def test_dashboard_signature_guard():
 
     arg_names = [arg.arg for arg in dashboard_nodes[0].args.args]
     assert arg_names == ["request", "q", "error", "info"]
+
+
+
+def test_run_server_avoids_square_bracket_syntax():
+    source = Path("scripts/run_server.py").read_text()
+    assert "[" not in source
 def test_app_does_not_inline_startup_template_check_logic():
     app_source = Path("app.py").read_text()
 
