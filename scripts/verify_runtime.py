@@ -44,6 +44,26 @@ FORBIDDEN_APP_SNIPPETS = [
 ENTRYPOINT_MAX_LINES = 20
 
 
+def _validate_dashboard_signature(source: str) -> tuple[list[str], str]:
+    issues: list[str] = []
+    detected_signature = "<unavailable>"
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return [f"application.py AST parse failed: {exc}"], detected_signature
+
+    dashboard_nodes = [n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "dashboard"]
+    if not dashboard_nodes:
+        return ["dashboard() function not found in application.py"], detected_signature
+
+    node = dashboard_nodes[0]
+    arg_names = [a.arg for a in node.args.args]
+    defaults = ["<no-default>"] * (len(arg_names) - len(node.args.defaults)) + [ast.unparse(d) if hasattr(ast, "unparse") else "<default>" for d in node.args.defaults]
+    detected_signature = "dashboard(" + ", ".join(f"{n}={d}" for n, d in zip(arg_names, defaults)) + ")"
+
+    if "info" not in arg_names:
+        issues.append("dashboard() is missing expected 'info' parameter; this matches the stale signature seen in startup tracebacks.")
+    return issues, detected_signature
 def _validate_dashboard_signature(source: str) -> list[str]:
     issues: list[str] = []
     try:
@@ -90,6 +110,8 @@ def main() -> int:
             app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
 
     app_impl_source = Path("application.py").read_text()
+    dashboard_issues, dashboard_signature = _validate_dashboard_signature(app_impl_source)
+    app_source_issues.extend(dashboard_issues)
     app_source_issues.extend(_validate_dashboard_signature(app_impl_source))
     for snippet in FORBIDDEN_STARTUP_SNIPPETS:
         if snippet in app_impl_source:
@@ -103,6 +125,7 @@ def main() -> int:
             import_errors.append(f"{module}: {exc}")
 
     if not missing and not syntax_errors and not app_source_issues and not import_errors:
+        print(f"Detected dashboard signature: {dashboard_signature}")
     if not missing and not syntax_errors and not app_source_issues:
     app_source = Path("application.py").read_text()
     for snippet in FORBIDDEN_APP_SNIPPETS:
@@ -131,6 +154,10 @@ def main() -> int:
 
     if app_source_issues:
         print("App source guard errors detected:")
+        print(f" - Detected dashboard signature: {dashboard_signature}")
+        for issue in app_source_issues:
+            print(f" - {issue}")
+        print(" - Remediation: ensure your deployed checkout includes dashboard(request, q, error, info) and rerun this check.")
         for issue in app_source_issues:
             print(f" - {issue}")
 
