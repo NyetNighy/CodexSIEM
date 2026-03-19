@@ -88,6 +88,10 @@ python scripts/run_server.py --host 0.0.0.0 --port 8000
 
 If you still want to call Uvicorn directly, run `python scripts/verify_runtime.py` immediately before `uvicorn main:app` to detect stale or malformed local files first.
 
+If you see a syntax error coming from `scripts/run_server.py`, prefer the root wrapper instead:
+
+```bash
+python run_server.py --host 0.0.0.0 --port 8000
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```

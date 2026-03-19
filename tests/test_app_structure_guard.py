@@ -38,6 +38,10 @@ def test_run_server_entrypoint_is_thin_wrapper():
 def test_scripts_run_server_entrypoint_is_thin_wrapper():
     run_server_source = Path("scripts/run_server.py").read_text()
 
+    assert "runpy.run_path" in run_server_source
+    assert "sys.path.insert(0, str(root))" in run_server_source
+    assert 'run_server.py"), run_name="__main__"' in run_server_source
+    assert len(run_server_source.splitlines()) <= 15
     assert "from startup_launcher import main" in run_server_source
     assert "sys.path.insert(0, str(ROOT))" in run_server_source
     assert len(run_server_source.splitlines()) <= 20
