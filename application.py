@@ -642,6 +642,7 @@ async def logout(request: Request) -> RedirectResponse:
 
 def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str, info: str = "") -> str:
     """Render a minimal dashboard when Jinja template rendering fails."""
+def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str) -> str:
     safe_rows = []
     for row in rows:
         safe_rows.append(
@@ -670,6 +671,8 @@ def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: in
         + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Alert Time</th><th>Customer</th><th>Tenant</th><th>User</th><th>IP</th><th>Application</th><th>Severity</th><th>Reason</th></tr></thead><tbody>"
         + rows_html
         + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p><form method='post' action='/check-updates'><button type='submit'>Check GitHub Updates</button></form></body></html>"
+        + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
+        + "</tbody></table><p><a href='/tenants'>Manage Tenants</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
     )
 
 
@@ -684,6 +687,7 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
             f"<td>{html.escape(str(t['tenant_id'] or ''))}</td>"
             f"<td>{html.escape(str(t['client_id'] or ''))}</td>"
             f"<td>{html.escape(str(t['secret_source'] or ''))}</td>"
+            f"<td>{html.escape(str(t['client_secret_ref'] or ''))}</td>"
             f"<td>{html.escape(str(t['created_at'] or ''))}</td>"
             "</tr>"
         )
@@ -705,6 +709,10 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
         "<button type='submit'>Save Tenant</button>"
         "</form>"
         + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Source</th><th>Added</th></tr></thead><tbody>"
+        "<input name='client_secret_ref' placeholder='Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)' required />"
+        "<button type='submit'>Save Tenant</button>"
+        "</form>"
+        + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead><tbody>"
         + rows_html
         + "</tbody></table><p><a href='/'>Back to Dashboard</a></p></body></html>"
     )
@@ -712,6 +720,7 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, q: str = "", error: str = "", info: str = "") -> HTMLResponse:
+async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLResponse:
     auth_redirect = require_login(request)
     if auth_redirect:
         return auth_redirect
@@ -768,6 +777,7 @@ async def dashboard(request: Request, q: str = "", error: str = "", info: str = 
         LOGGER.exception("Failed to render dashboard.html; returning fallback dashboard HTML")
         return HTMLResponse(
             _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error, info),
+            _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error),
             status_code=200,
         )
 
@@ -870,6 +880,7 @@ async def tenant_page(request: Request) -> HTMLResponse:
             """,
             (ENV_REF_PLACEHOLDER,),
         ).fetchall()
+        tenants = conn.execute("SELECT name, customer_name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY customer_name ASC, name ASC").fetchall()
     try:
         return templates.TemplateResponse(
             "tenants.html",
@@ -894,6 +905,7 @@ async def create_tenant(
     client_id: str = Form(...),
     client_secret_ref: str = Form(""),
     client_secret: str = Form(""),
+    client_secret_ref: str = Form(...),
 ) -> RedirectResponse:
     auth_redirect = require_manage_access(request)
     if auth_redirect:
@@ -906,6 +918,9 @@ async def create_tenant(
 
     secret_to_store = secret_value or ENV_REF_PLACEHOLDER
 
+    if not secret_ref:
+        return RedirectResponse(url="/tenants", status_code=303)
+
     with closing(db_conn()) as conn:
         conn.execute(
             """
@@ -913,6 +928,7 @@ async def create_tenant(
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), secret_to_store, secret_ref, utc_now_iso()),
+            (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), ENV_REF_PLACEHOLDER, secret_ref, utc_now_iso()),
         )
         conn.commit()
 

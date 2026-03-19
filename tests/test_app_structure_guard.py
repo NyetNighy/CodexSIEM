@@ -10,6 +10,7 @@ def test_app_entrypoint_is_thin_wrapper():
     assert "Template startup self-check found failures but strict mode is disabled" not in app_source
     assert "Template syntax error during startup check" not in app_source
     assert len(app_source.splitlines()) <= 20
+    assert "from application import *" in app_source
 
 
 def test_application_keeps_startup_check_logic_out_of_entrypoint():
@@ -41,6 +42,9 @@ def test_scripts_run_server_entrypoint_is_thin_wrapper():
     assert "sys.path.insert(0, str(root))" in run_server_source
     assert 'run_server.py"), run_name="__main__"' in run_server_source
     assert len(run_server_source.splitlines()) <= 15
+    assert "from startup_launcher import main" in run_server_source
+    assert "sys.path.insert(0, str(ROOT))" in run_server_source
+    assert len(run_server_source.splitlines()) <= 20
 
 
 def test_dashboard_signature_guard():
@@ -62,3 +66,12 @@ def test_dashboard_signature_guard():
 def test_run_server_avoids_square_bracket_syntax():
     source = Path("startup_launcher.py").read_text()
     assert "[" not in source
+    source = Path("scripts/run_server.py").read_text()
+    assert "[" not in source
+def test_app_does_not_inline_startup_template_check_logic():
+    app_source = Path("app.py").read_text()
+
+    assert "Template startup self-check found failures but strict mode is disabled" not in app_source
+    assert "Template syntax error during startup check" not in app_source
+    assert "def startup_template_self_check" in app_source
+    assert "run_startup_template_self_check" in app_source
