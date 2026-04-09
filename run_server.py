@@ -64,6 +64,7 @@ def _ensure_repair_script_usable() -> bool:
 def _run_repair(include_application: bool) -> int:
     if not _ensure_repair_script_usable():
         return 1
+def _run_repair(include_application: bool) -> int:
     repair_cmd = [sys.executable, str(ROOT / "scripts" / "repair_entrypoints.py")]
     if include_application:
         repair_cmd.append("--include-application")
@@ -113,6 +114,12 @@ def _fallback_start() -> int:
 
     if args.auto_recover:
         repair = _run_repair(include_application=True)
+        repair_cmd = (
+            sys.executable,
+            str(ROOT / "scripts" / "repair_entrypoints.py"),
+            "--include-application",
+        )
+        repair = subprocess.call(repair_cmd, cwd=ROOT)
         if repair == 0:
             launcher_path = ROOT / "startup_launcher.py"
             try:
@@ -131,6 +138,7 @@ def _fallback_start() -> int:
         else:
             print("Wrapper repair failed; starting emergency fallback app.", file=sys.stderr)
             return _run_emergency_error_app(args.host, str(args.port), args.reload)
+    args = parser.parse_args()
 
     cmd = (
         sys.executable,
@@ -148,6 +156,7 @@ def _fallback_start() -> int:
         return subprocess.call(cmd, cwd=ROOT)
     except KeyboardInterrupt:
         return 130
+    return subprocess.call(cmd, cwd=ROOT)
 
 
 if __name__ == "__main__":
@@ -159,3 +168,10 @@ if __name__ == "__main__":
         print(f"Warning: startup_launcher.py is not parseable: {exc.msg}", file=sys.stderr)
         print("Falling back to direct uvicorn startup path.", file=sys.stderr)
         raise SystemExit(_fallback_start())
+"""Thin startup wrapper for CodexSIEM."""
+
+from startup_launcher import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

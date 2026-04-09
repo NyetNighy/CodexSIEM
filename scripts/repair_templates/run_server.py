@@ -64,6 +64,7 @@ def _ensure_repair_script_usable() -> bool:
 def _run_repair(include_application: bool) -> int:
     if not _ensure_repair_script_usable():
         return 1
+def _run_repair(include_application: bool) -> int:
     repair_cmd = [sys.executable, str(ROOT / "scripts" / "repair_entrypoints.py")]
     if include_application:
         repair_cmd.append("--include-application")
