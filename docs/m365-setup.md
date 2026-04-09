@@ -86,6 +86,7 @@ In CodexSIEM (Manager/Admin role):
 2. Add:
    - Customer Name (client/account name)
    - Connection Display Name (friendly label)
+   - Display Name (friendly label)
    - Tenant ID (Directory ID)
    - Client ID (Application ID)
    - Secret Env Var Name (example: `TENANT_A_CLIENT_SECRET`)
