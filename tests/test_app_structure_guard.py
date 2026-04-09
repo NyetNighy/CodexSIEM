@@ -31,6 +31,9 @@ def test_main_entrypoint_is_thin_wrapper():
 def test_run_server_entrypoint_is_thin_wrapper():
     run_server_source = Path("run_server.py").read_text()
 
+    assert "startup_launcher.py" in run_server_source
+    assert "_fallback_start" in run_server_source
+    assert "runpy.run_path" in run_server_source
     assert "from startup_launcher import main" in run_server_source
     assert len(run_server_source.splitlines()) <= 10
 
