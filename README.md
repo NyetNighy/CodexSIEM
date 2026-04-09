@@ -98,6 +98,12 @@ If preflight reports indentation/syntax corruption in `app.py` or `application.p
 
 ```bash
 python run_server.py --auto-recover --host 0.0.0.0 --port 8000
+```
+
+If git restore is not practical, you can rewrite wrapper files to known-good templates:
+
+```bash
+python scripts/repair_entrypoints.py
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
