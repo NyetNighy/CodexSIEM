@@ -1,3 +1,6 @@
+"""Repair CodexSIEM startup entrypoints from known-good local templates."""
+
+from __future__ import annotations
 """Rewrite startup entrypoint files to known-good templates."""
 
 from __future__ import annotations
@@ -9,6 +12,22 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
+TEMPLATE_ROOT = ROOT / "scripts" / "repair_templates"
+
+TEMPLATES = {
+    "app.py": "app.py",
+    "main.py": "main.py",
+    "run_server.py": "run_server.py",
+    "startup_launcher.py": "startup_launcher.py",
+    "scripts/run_server.py": "scripts_run_server.py",
+}
+
+
+def _load_template(template_name: str) -> str:
+    template_path = TEMPLATE_ROOT / template_name
+    if not template_path.exists():
+        raise FileNotFoundError(f"Missing repair template: {template_path}")
+    return template_path.read_text(encoding="utf-8")
 
 TEMPLATES = {
     "app.py": '''"""Stable ASGI entrypoint wrapper with safe fallback mode."""
@@ -427,6 +446,13 @@ def main() -> int:
     )
     include_application = parser.parse_args().include_application
 
+    for relative_path, template_name in TEMPLATES.items():
+        path = ROOT / relative_path
+        content = _load_template(template_name)
+        path.write_text(content, encoding="utf-8")
+        print(f"Repaired {relative_path}")
+
+    if include_application:
     args = parser.parse_args()
 
 def main() -> int:
