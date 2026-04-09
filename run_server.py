@@ -49,3 +49,10 @@ if __name__ == "__main__":
         print(f"Warning: startup_launcher.py is not parseable: {exc.msg}", file=sys.stderr)
         print("Falling back to direct uvicorn startup path.", file=sys.stderr)
         raise SystemExit(_fallback_start())
+"""Thin startup wrapper for CodexSIEM."""
+
+from startup_launcher import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
