@@ -18,6 +18,30 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
+_BOOTSTRAP_REPAIR_SCRIPT = """from __future__ import annotations
+import argparse
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+REPAIR_TARGETS = ("app.py", "main.py", "run_server.py", "startup_launcher.py", "scripts/run_server.py")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Bootstrap repair for CodexSIEM startup wrappers.")
+    parser.add_argument("--include-application", action="store_true")
+    include_application = parser.parse_args().include_application
+    targets = list(REPAIR_TARGETS)
+    if include_application:
+        targets.append("application.py")
+    result = subprocess.run(("git", "checkout", "--", *targets), cwd=ROOT)
+    if result.returncode != 0:
+        print("Bootstrap repair failed. Restore files from git manually.")
+    return result.returncode
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+"""
+
 
 def _try_compile(path: Path) -> bool:
     try:
@@ -28,6 +52,18 @@ def _try_compile(path: Path) -> bool:
         return False
 
 
+def _ensure_repair_script_usable() -> bool:
+    repair_path = ROOT / "scripts" / "repair_entrypoints.py"
+    if _try_compile(repair_path):
+        return True
+    print("Repair script is corrupted; writing bootstrap repair implementation.", file=sys.stderr)
+    repair_path.write_text(_BOOTSTRAP_REPAIR_SCRIPT, encoding="utf-8")
+    return _try_compile(repair_path)
+
+
+def _run_repair(include_application: bool) -> int:
+    if not _ensure_repair_script_usable():
+        return 1
 def _run_repair(include_application: bool) -> int:
     repair_cmd = [sys.executable, str(ROOT / "scripts" / "repair_entrypoints.py")]
     if include_application:
