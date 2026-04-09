@@ -44,6 +44,8 @@ def _fallback_start() -> int:
         else:
             print("Auto-recover command failed before startup.", file=sys.stderr)
 
+    args = parser.parse_args()
+
     cmd = (
         sys.executable,
         "-m",
@@ -60,6 +62,7 @@ def _fallback_start() -> int:
         return subprocess.call(cmd, cwd=ROOT)
     except KeyboardInterrupt:
         return 130
+    return subprocess.call(cmd, cwd=ROOT)
 
 
 if __name__ == "__main__":
@@ -71,3 +74,10 @@ if __name__ == "__main__":
         print(f"Warning: startup_launcher.py is not parseable: {exc.msg}", file=sys.stderr)
         print("Falling back to direct uvicorn startup path.", file=sys.stderr)
         raise SystemExit(_fallback_start())
+"""Thin startup wrapper for CodexSIEM."""
+
+from startup_launcher import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
