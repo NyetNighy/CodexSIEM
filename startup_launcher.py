@@ -112,3 +112,4 @@ def main() -> int:
         return subprocess.call(uvicorn_cmd, cwd=ROOT)
     except KeyboardInterrupt:
         return 130
+

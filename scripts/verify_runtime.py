@@ -9,6 +9,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+import py_compile
+from pathlib import Path
+"""Simple runtime dependency check for CodexSIEM."""
+
+import importlib
+import sys
 
 REQUIRED = [
     "fastapi",
@@ -30,6 +36,7 @@ PYTHON_SOURCES = [
 ]
 
 FORBIDDEN_STARTUP_SNIPPETS = [
+FORBIDDEN_APP_SNIPPETS = [
     "Template startup self-check found failures but strict mode is disabled",
     "Template syntax error during startup check",
 ]
@@ -57,6 +64,22 @@ def _validate_dashboard_signature(source: str) -> tuple[list[str], str]:
     if "info" not in arg_names:
         issues.append("dashboard() is missing expected 'info' parameter; this matches the stale signature seen in startup tracebacks.")
     return issues, detected_signature
+def _validate_dashboard_signature(source: str) -> list[str]:
+    issues: list[str] = []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return [f"application.py AST parse failed: {exc}"]
+
+    dashboard_nodes = [n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "dashboard"]
+    if not dashboard_nodes:
+        return ["dashboard() function not found in application.py"]
+
+    node = dashboard_nodes[0]
+    arg_names = [a.arg for a in node.args.args]
+    if "info" not in arg_names:
+        issues.append("dashboard() is missing expected 'info' parameter; deployed code may be stale")
+    return issues
 
 
 def main() -> int:
@@ -89,6 +112,7 @@ def main() -> int:
     app_impl_source = Path("application.py").read_text()
     dashboard_issues, dashboard_signature = _validate_dashboard_signature(app_impl_source)
     app_source_issues.extend(dashboard_issues)
+    app_source_issues.extend(_validate_dashboard_signature(app_impl_source))
     for snippet in FORBIDDEN_STARTUP_SNIPPETS:
         if snippet in app_impl_source:
             app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
@@ -102,6 +126,20 @@ def main() -> int:
 
     if not missing and not syntax_errors and not app_source_issues and not import_errors:
         print(f"Detected dashboard signature: {dashboard_signature}")
+    if not missing and not syntax_errors and not app_source_issues:
+    app_source = Path("application.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"application.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
+    app_source = Path("app.py").read_text()
+    for snippet in FORBIDDEN_APP_SNIPPETS:
+        if snippet in app_source:
+            app_source_issues.append(f"app.py contains forbidden startup-check implementation snippet: {snippet}")
+
+    if not missing and not syntax_errors and not app_source_issues:
+    if not missing and not syntax_errors:
         print("Runtime dependency and syntax check passed.")
         return 0
 
@@ -120,12 +158,20 @@ def main() -> int:
         for issue in app_source_issues:
             print(f" - {issue}")
         print(" - Remediation: ensure your deployed checkout includes dashboard(request, q, error, info) and rerun this check.")
+        for issue in app_source_issues:
+            print(f" - {issue}")
 
     if import_errors:
         print("Import errors detected:")
         for issue in import_errors:
             print(f" - {issue}")
 
+    if not missing:
+        print("Runtime dependency check passed.")
+        return 0
+
+    print("Missing modules:", ", ".join(missing))
+    print("Run: pip install -r requirements.txt")
     return 1
 
 
