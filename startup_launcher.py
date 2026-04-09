@@ -72,6 +72,17 @@ def _validate_entrypoint_wrappers() -> int:
     targets = (("app.py", "app.py"), ("main.py", "main.py"))
     for filename, label in targets:
         source = (ROOT / filename).read_text()
+        if "importlib.import_module(\"application\")" not in source:
+            print(
+                f"Preflight wrapper check failed: {label} must load application.py via importlib.",
+                file=sys.stderr,
+            )
+            return 1
+        if len(source.splitlines()) > 80:
+            print(
+                f"Preflight wrapper check failed: {label} is too large; expected thin wrapper.",
+                file=sys.stderr,
+            )
         if "from application import *" not in source:
             print(f"Preflight wrapper check failed: {label} must re-export from application.py.", file=sys.stderr)
             return 1
@@ -149,3 +160,6 @@ def main() -> int:
     except KeyboardInterrupt:
         return 130
 
+
+if __name__ == "__main__":
+    raise SystemExit(main())
