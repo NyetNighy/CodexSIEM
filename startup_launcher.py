@@ -28,6 +28,7 @@ def _compile_target(path: Path) -> bool:
         return False
 
 
+def _compile_required_targets(auto_recover: bool = False) -> int:
 def _compile_required_targets() -> int:
     failed_files: list[str] = []
     for filename in ("app.py", "application.py", "main.py"):
@@ -37,6 +38,15 @@ def _compile_required_targets() -> int:
 
     if not failed_files:
         return 0
+
+    if auto_recover:
+        recover_cmd = ("git", "checkout", "--", *failed_files)
+        print(f"Attempting automatic recovery: {' '.join(recover_cmd)}", file=sys.stderr)
+        result = subprocess.run(recover_cmd, cwd=ROOT)
+        if result.returncode == 0:
+            print("Auto-recovery succeeded; re-running compile preflight.", file=sys.stderr)
+            return _compile_required_targets(auto_recover=False)
+        print("Auto-recovery failed; falling back to manual recovery instructions.", file=sys.stderr)
 
     if len(failed_files) == 1:
         print(f"Suggested recovery: git checkout -- {failed_files[0]}", file=sys.stderr)
@@ -95,6 +105,10 @@ def main() -> int:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", default="8000")
     parser.add_argument("--reload", action="store_true")
+    parser.add_argument("--auto-recover", action="store_true", help="Attempt git checkout auto-recovery for broken app/main wrappers.")
+    args = parser.parse_args()
+
+    if _compile_required_targets(auto_recover=args.auto_recover) != 0:
     args = parser.parse_args()
 
     if _compile_required_targets() != 0:

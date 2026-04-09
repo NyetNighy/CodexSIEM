@@ -92,6 +92,12 @@ If you see a syntax error coming from `scripts/run_server.py`, prefer the root w
 
 ```bash
 python run_server.py --host 0.0.0.0 --port 8000
+```
+
+If preflight reports indentation/syntax corruption in `app.py` or `application.py`, you can let the launcher attempt automatic git recovery:
+
+```bash
+python run_server.py --auto-recover --host 0.0.0.0 --port 8000
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
