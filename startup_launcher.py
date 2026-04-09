@@ -29,6 +29,22 @@ def _compile_target(path: Path) -> bool:
 
 
 def _compile_required_targets() -> int:
+    failed_files: list[str] = []
+    for filename in ("app.py", "application.py", "main.py"):
+        path = ROOT / filename
+        if not _compile_target(path):
+            failed_files.append(filename)
+
+    if not failed_files:
+        return 0
+
+    if len(failed_files) == 1:
+        print(f"Suggested recovery: git checkout -- {failed_files[0]}", file=sys.stderr)
+    else:
+        joined = " ".join(failed_files)
+        print(f"Suggested recovery: git checkout -- {joined}", file=sys.stderr)
+    print("If you have local edits, back them up before running the command above.", file=sys.stderr)
+    return 1
     ok = True
     ok = _compile_target(ROOT / "app.py") and ok
     ok = _compile_target(ROOT / "application.py") and ok

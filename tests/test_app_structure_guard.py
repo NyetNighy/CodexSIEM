@@ -64,6 +64,8 @@ def test_dashboard_signature_guard():
 
 
 def test_run_server_avoids_square_bracket_syntax():
+    source = Path("scripts/run_server.py").read_text()
+    assert "[" not in source
     source = Path("startup_launcher.py").read_text()
     assert "[" not in source
     source = Path("scripts/run_server.py").read_text()
