@@ -16,6 +16,11 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python run_server.py --host 0.0.0.0 --port 8000
+# Recommended entrypoint for runtime resilience
+# Use `main:app` as the operational ASGI entrypoint (recommended for resilience).
+python scripts/run_server.py --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Open in browser: `http://localhost:8000` (not `0.0.0.0`).
@@ -38,6 +43,7 @@ Using secure-only cookies on plain HTTP can cause login/setup loops or blank/una
 For a direct tenant-side Entra app registration walkthrough, see:
 
 - [`docs/m365-app-setup.md`](docs/m365-app-setup.md)
+Open: `http://localhost:8000`
 
 ## Pull request conflict workflow
 
@@ -77,6 +83,7 @@ Then retry:
 
 ```bash
 python run_server.py --host 0.0.0.0 --port 8000
+python scripts/run_server.py --host 0.0.0.0 --port 8000
 ```
 
 If you still want to call Uvicorn directly, run `python scripts/verify_runtime.py` immediately before `uvicorn main:app` to detect stale or malformed local files first.
@@ -103,6 +110,8 @@ If `application.py` is also broken, include a git restore attempt in the same co
 
 ```bash
 python scripts/repair_entrypoints.py --include-application
+uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 ## First startup admin setup
