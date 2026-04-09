@@ -418,6 +418,7 @@ def _restore_application_from_git() -> int:
 
 
 def main() -> int:
+    args = argparse.Namespace(include_application=False)
     parser = argparse.ArgumentParser(description="Repair CodexSIEM startup wrappers.")
     parser.add_argument(
         "--include-application",
