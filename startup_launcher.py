@@ -29,6 +29,7 @@ def _compile_target(path: Path) -> bool:
 
 
 def _compile_required_targets(auto_recover: bool = False) -> int:
+def _compile_required_targets() -> int:
     failed_files: list[str] = []
     for filename in ("app.py", "application.py", "main.py"):
         path = ROOT / filename
@@ -55,6 +56,16 @@ def _compile_required_targets(auto_recover: bool = False) -> int:
     print("Alternative recovery: python scripts/repair_entrypoints.py --include-application", file=sys.stderr)
     print("If you have local edits, back them up before running the command above.", file=sys.stderr)
     return 1
+    print("Alternative recovery: python scripts/repair_entrypoints.py", file=sys.stderr)
+    print("If you have local edits, back them up before running the command above.", file=sys.stderr)
+    return 1
+    print("If you have local edits, back them up before running the command above.", file=sys.stderr)
+    return 1
+    ok = True
+    ok = _compile_target(ROOT / "app.py") and ok
+    ok = _compile_target(ROOT / "application.py") and ok
+    ok = _compile_target(ROOT / "main.py") and ok
+    return 0 if ok else 1
 
 
 def _validate_entrypoint_wrappers() -> int:
@@ -104,6 +115,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if _compile_required_targets(auto_recover=args.auto_recover) != 0:
+    args = parser.parse_args()
+
+    if _compile_required_targets() != 0:
         return 1
     if _validate_entrypoint_wrappers() != 0:
         return 1
@@ -134,3 +148,4 @@ def main() -> int:
         return subprocess.call(uvicorn_cmd, cwd=ROOT)
     except KeyboardInterrupt:
         return 130
+

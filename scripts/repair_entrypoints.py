@@ -158,6 +158,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+def main() -> int:
     for relative_path, content in TEMPLATES.items():
         path = ROOT / relative_path
         path.write_text(content, encoding="utf-8")
