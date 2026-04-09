@@ -5,6 +5,7 @@ def test_repair_main_uses_parsed_args_without_name_error(monkeypatch, tmp_path):
     monkeypatch.setattr(repair, "ROOT", tmp_path)
     monkeypatch.setattr(repair, "TEMPLATES", {"app.py": "app.py"})
     monkeypatch.setattr(repair, "_load_template", lambda _: "app = 1\n")
+    monkeypatch.setattr(repair, "TEMPLATES", {"app.py": "app = 1\n"})
 
     called = {"restore": 0}
 
