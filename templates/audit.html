@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Audit Logs</title></head>
+<body style="font-family:Arial,sans-serif;margin:24px;">
+  <h1>Security Audit Logs</h1>
+  <p>Signed in as <strong>{{ user }}</strong> ({{ role }})</p>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+      <tr><th>Time</th><th>Actor</th><th>Role</th><th>Action</th><th>Target</th><th>Outcome</th><th>Source IP</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+      {% for r in logs %}
+      <tr>
+        <td>{{ r['event_time'] }}</td>
+        <td>{{ r['actor'] }}</td>
+        <td>{{ r['actor_role'] }}</td>
+        <td>{{ r['action'] }}</td>
+        <td>{{ r['target'] }}</td>
+        <td>{{ r['outcome'] }}</td>
+        <td>{{ r['source_ip'] }}</td>
+        <td><code>{{ r['details'] }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="/">Back to Dashboard</a></p>
+</body>
+</html>
