@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+ENTRYPOINT_MAX_LINES = 20
 
 
 def _compile_target(path: Path) -> bool:
@@ -29,9 +30,23 @@ def _compile_target(path: Path) -> bool:
 
 def _compile_required_targets() -> int:
     ok = True
+    ok = _compile_target(ROOT / "app.py") and ok
     ok = _compile_target(ROOT / "application.py") and ok
     ok = _compile_target(ROOT / "main.py") and ok
     return 0 if ok else 1
+
+
+def _validate_entrypoint_wrappers() -> int:
+    targets = (("app.py", "app.py"), ("main.py", "main.py"))
+    for filename, label in targets:
+        source = (ROOT / filename).read_text()
+        if "from application import *" not in source:
+            print(f"Preflight wrapper check failed: {label} must re-export from application.py.", file=sys.stderr)
+            return 1
+        if len(source.splitlines()) > ENTRYPOINT_MAX_LINES:
+            print(f"Preflight wrapper check failed: {label} is too large; expected thin wrapper.", file=sys.stderr)
+            return 1
+    return 0
 
 
 def _verify_runtime_script_is_usable() -> bool:
@@ -67,6 +82,8 @@ def main() -> int:
     args = parser.parse_args()
 
     if _compile_required_targets() != 0:
+        return 1
+    if _validate_entrypoint_wrappers() != 0:
         return 1
 
     if _verify_runtime_script_is_usable():
