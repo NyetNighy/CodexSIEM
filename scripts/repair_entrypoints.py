@@ -1,6 +1,7 @@
 """Rewrite startup entrypoint files to known-good templates."""
 
 from __future__ import annotations
+"""Rewrite entrypoint wrapper files to known-good templates."""
 
 import argparse
 import subprocess
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import importlib
 from types import ModuleType
+import importlib
 
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
@@ -49,6 +51,9 @@ def _load_app() -> FastAPI:
     try:
         module = importlib.import_module("application")
         _export_module_symbols(module)
+def _load_app() -> FastAPI:
+    try:
+        module = importlib.import_module("application")
         return module.app
     except Exception as exc:  # noqa: BLE001
         return _fallback_startup_app(exc)
@@ -62,6 +67,7 @@ from __future__ import annotations
 
 import importlib
 from types import ModuleType
+import importlib
 
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
@@ -95,6 +101,9 @@ def _load_app() -> FastAPI:
     try:
         module = importlib.import_module("application")
         _export_module_symbols(module)
+def _load_app() -> FastAPI:
+    try:
+        module = importlib.import_module("application")
         return module.app
     except Exception as exc:  # noqa: BLE001
         return _fallback_startup_app(exc)
@@ -182,6 +191,12 @@ def _fallback_start() -> int:
 
     if args.auto_recover:
         repair = _run_repair(include_application=True)
+        repair_cmd = (
+            sys.executable,
+            str(ROOT / "scripts" / "repair_entrypoints.py"),
+            "--include-application",
+        )
+        repair = subprocess.call(repair_cmd, cwd=ROOT)
         if repair == 0:
             launcher_path = ROOT / "startup_launcher.py"
             try:
@@ -200,6 +215,7 @@ def _fallback_start() -> int:
         else:
             print("Wrapper repair failed; starting emergency fallback app.", file=sys.stderr)
             return _run_emergency_error_app(args.host, str(args.port), args.reload)
+    args = parser.parse_args()
 
     cmd = (
         sys.executable,
@@ -217,6 +233,7 @@ def _fallback_start() -> int:
         return subprocess.call(cmd, cwd=ROOT)
     except KeyboardInterrupt:
         return 130
+    return subprocess.call(cmd, cwd=ROOT)
 
 
 if __name__ == "__main__":
@@ -409,6 +426,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+def main() -> int:
     for relative_path, content in TEMPLATES.items():
         path = ROOT / relative_path
         path.write_text(content, encoding="utf-8")

@@ -19,6 +19,7 @@ def test_startup_template_self_check_logs_and_raises(monkeypatch, caplog):
     with caplog.at_level(logging.ERROR):
         with pytest.raises(RuntimeError, match="Template startup self-check failed"):
             app.startup_template_self_check(strict=True)
+            app.startup_template_self_check()
 
     assert "Template compilation failed during startup for broken.html" in caplog.text
 
@@ -29,6 +30,7 @@ def test_startup_template_self_check_passes(monkeypatch, caplog):
 
     with caplog.at_level(logging.INFO):
         app.startup_template_self_check(strict=True)
+        app.startup_template_self_check()
 
     assert "Template startup self-check passed for 2 HTML templates" in caplog.text
 
@@ -62,3 +64,7 @@ def test_startup_template_self_check_non_strict_logs_but_does_not_raise(monkeypa
 
     assert failures == ["dashboard.html:102"]
     assert "strict mode is disabled" in caplog.text
+            app.startup_template_self_check()
+
+    assert "Template syntax error during startup check for dashboard.html" in caplog.text
+    assert "line=102" in caplog.text
