@@ -53,6 +53,9 @@ def _compile_required_targets() -> int:
     else:
         joined = " ".join(failed_files)
         print(f"Suggested recovery: git checkout -- {joined}", file=sys.stderr)
+    print("Alternative recovery: python scripts/repair_entrypoints.py --include-application", file=sys.stderr)
+    print("If you have local edits, back them up before running the command above.", file=sys.stderr)
+    return 1
     print("Alternative recovery: python scripts/repair_entrypoints.py", file=sys.stderr)
     print("If you have local edits, back them up before running the command above.", file=sys.stderr)
     return 1

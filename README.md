@@ -104,6 +104,12 @@ If git restore is not practical, you can rewrite wrapper files to known-good tem
 
 ```bash
 python scripts/repair_entrypoints.py
+```
+
+If `application.py` is also broken, include a git restore attempt in the same command:
+
+```bash
+python scripts/repair_entrypoints.py --include-application
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```

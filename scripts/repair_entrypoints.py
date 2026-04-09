@@ -1,5 +1,7 @@
 """Rewrite entrypoint wrapper files to known-good templates."""
 
+import argparse
+import subprocess
 from pathlib import Path
 
 
@@ -138,11 +140,31 @@ if __name__ == "__main__":
 }
 
 
+def _restore_application_from_git() -> int:
+    result = subprocess.run(("git", "checkout", "--", "application.py"), cwd=ROOT)
+    if result.returncode == 0:
+        print("Restored application.py from git checkout")
+        return 0
+    print("Failed to restore application.py from git. Please repair it manually.", flush=True)
+    return 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Repair CodexSIEM startup wrappers.")
+    parser.add_argument(
+        "--include-application",
+        action="store_true",
+        help="Also restore application.py from git checkout.",
+    )
+    args = parser.parse_args()
+
 def main() -> int:
     for relative_path, content in TEMPLATES.items():
         path = ROOT / relative_path
         path.write_text(content, encoding="utf-8")
         print(f"Repaired {relative_path}")
+    if args.include_application:
+        return _restore_application_from_git()
     return 0
 
 

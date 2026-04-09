@@ -23,6 +23,27 @@ def _fallback_start() -> int:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", default="8000")
     parser.add_argument("--reload", action="store_true")
+    parser.add_argument("--auto-recover", action="store_true")
+    args = parser.parse_args()
+
+    if args.auto_recover:
+        repair_cmd = (
+            sys.executable,
+            str(ROOT / "scripts" / "repair_entrypoints.py"),
+            "--include-application",
+        )
+        repair = subprocess.call(repair_cmd, cwd=ROOT)
+        if repair == 0:
+            launcher_path = ROOT / "startup_launcher.py"
+            try:
+                py_compile.compile(str(launcher_path), doraise=True)
+                runpy.run_path(str(launcher_path), run_name="__main__")
+                return 0
+            except py_compile.PyCompileError as exc:
+                print(f"Auto-recover could not repair startup_launcher.py: {exc.msg}", file=sys.stderr)
+        else:
+            print("Auto-recover command failed before startup.", file=sys.stderr)
+
     args = parser.parse_args()
 
     cmd = (
@@ -37,6 +58,10 @@ def _fallback_start() -> int:
     )
     if args.reload:
         cmd = cmd + ("--reload",)
+    try:
+        return subprocess.call(cmd, cwd=ROOT)
+    except KeyboardInterrupt:
+        return 130
     return subprocess.call(cmd, cwd=ROOT)
 
 
