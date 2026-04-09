@@ -45,6 +45,11 @@ def _compile_required_targets() -> int:
         print(f"Suggested recovery: git checkout -- {joined}", file=sys.stderr)
     print("If you have local edits, back them up before running the command above.", file=sys.stderr)
     return 1
+    ok = True
+    ok = _compile_target(ROOT / "app.py") and ok
+    ok = _compile_target(ROOT / "application.py") and ok
+    ok = _compile_target(ROOT / "main.py") and ok
+    return 0 if ok else 1
 
 
 def _validate_entrypoint_wrappers() -> int:
@@ -123,3 +128,4 @@ def main() -> int:
         return subprocess.call(uvicorn_cmd, cwd=ROOT)
     except KeyboardInterrupt:
         return 130
+
