@@ -24,6 +24,9 @@ Run app internally (example):
 
 ```bash
 python run_server.py --host 127.0.0.1 --port 8000
+python scripts/run_server.py --host 127.0.0.1 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
+uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
 Keep it private and let the reverse proxy handle internet traffic + TLS.
@@ -96,3 +99,4 @@ If you enable `SIEM_SSO_ENABLED=true`, make sure header claims are only injected
   - `X-Auth-Request-User`
   - `X-Auth-Request-Role`
   - `X-Auth-Request-Amr` (must contain `mfa` when MFA is required)
+
