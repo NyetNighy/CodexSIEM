@@ -425,6 +425,8 @@ def main() -> int:
         action="store_true",
         help="Also restore application.py from git checkout.",
     )
+    include_application = parser.parse_args().include_application
+
     args = parser.parse_args()
 
 def main() -> int:
@@ -432,6 +434,7 @@ def main() -> int:
         path = ROOT / relative_path
         path.write_text(content, encoding="utf-8")
         print(f"Repaired {relative_path}")
+    if include_application:
     if args.include_application:
         return _restore_application_from_git()
     return 0
