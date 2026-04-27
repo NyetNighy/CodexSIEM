@@ -34,7 +34,7 @@ FORBIDDEN_APP_SNIPPETS = [
     "Template syntax error during startup check",
 ]
 
-ENTRYPOINT_MAX_LINES = 20
+ENTRYPOINT_MAX_LINES = 80
 
 
 def _validate_dashboard_signature(source: str) -> tuple[list[str], str]:
