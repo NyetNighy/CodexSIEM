@@ -1,14 +1,9 @@
 """Alternative ASGI entrypoint wrapper with safe fallback mode."""
-import importlib
-from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
 
-_application_module = None
-
-def _fallback_startup_app(exc: Exception) -> FastAPI:
-    fallback = FastAPI(title="CodexSIEM Startup Error")
+from __future__ import annotations
 
 import importlib
+from types import ModuleType
 
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
@@ -24,39 +19,27 @@ def _fallback_startup_app(exc: Exception) -> FastAPI:
             f"Error: {exc}\n"
             "Recovery: run `python run_server.py --auto-recover --host 0.0.0.0 --port 8000`.\n"
         )
-    return fallback
-
-def _load_app() -> FastAPI:
-    global _application_module  # noqa: PLW0603
-    try:
-        _application_module = importlib.import_module("application")
-        return _application_module.app
-    except Exception as exc:  # noqa: BLE001
-        return _fallback_startup_app(exc)
-
-def __getattr__(name: str):
-    if _application_module is not None and hasattr(_application_module, name):
-        return getattr(_application_module, name)
-    raise AttributeError(name)
-
-app = _load_app()
 
     return fallback
+
+
+def _export_module_symbols(module: ModuleType) -> None:
+    exported = getattr(module, "__all__", None)
+    if exported is None:
+        exported = [name for name in module.__dict__ if not name.startswith("_")]
+    for name in exported:
+        if name == "app":
+            continue
+        globals()[name] = getattr(module, name)
 
 
 def _load_app() -> FastAPI:
     try:
         module = importlib.import_module("application")
+        _export_module_symbols(module)
         return module.app
     except Exception as exc:  # noqa: BLE001
         return _fallback_startup_app(exc)
 
 
 app = _load_app()
-"""Alternative stable ASGI entrypoint wrapper.
-
-Use `uvicorn main:app` for operational startup to avoid accidental local
-merge-conflict breakage in `app.py`.
-"""
-
-from application import *  # noqa: F401,F403
