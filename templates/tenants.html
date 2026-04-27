@@ -16,10 +16,6 @@
     <input name="client_secret" placeholder="Client Secret Value or Secret ID (stored in DB)" />
     <div style="text-align:center;color:#666">or</div>
     <input name="client_secret_ref" placeholder="Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)" />
-    <input name="name" placeholder="Display Name" required />
-    <input name="tenant_id" placeholder="Tenant ID (GUID)" required />
-    <input name="client_id" placeholder="App Client ID" required />
-    <input name="client_secret_ref" placeholder="Env var name holding secret (e.g. TENANT_A_CLIENT_SECRET)" required />
     <button type="submit">Save Tenant</button>
   </form>
 
@@ -43,28 +39,15 @@
         <td>{{ t['name'] }}</td>
         <td>{{ t['tenant_id'] }}</td>
         <td>{{ t['client_id'] }}</td>
-        <td>{{ t['secret_source'] }}</td>
-    <thead><tr><th>Customer</th><th>Connection</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
-    <tbody>
-    {% for t in tenants %}
-      <tr>
-        <td>{{ t['customer_name'] }}</td>
-    <thead><tr><th>Name</th><th>Tenant ID</th><th>Client ID</th><th>Secret Env Var</th><th>Added</th></tr></thead>
-    <tbody>
-    {% for t in tenants %}
-      <tr>
-        <td>{{ t['name'] }}</td>
-        <td>{{ t['tenant_id'] }}</td>
-        <td>{{ t['client_id'] }}</td>
-        <td>{{ t['client_secret_ref'] }}</td>
-        <td>{{ t['created_at'] }}</td>
+        <td>{{ t.get('secret_source', 'N/A') }}</td>
+        <td>{{ t.get('client_secret_ref', 'N/A') }}</td>
+        <td>{{ t.get('created_at', 'N/A') }}</td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6">No tenants configured yet.</td>
+        <td colspan="7">No tenants configured yet.</td>
       </tr>
       {% endfor %}
-    {% endfor %}
     </tbody>
   </table>
 
