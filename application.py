@@ -909,9 +909,6 @@ async def create_tenant(
 
     secret_to_store = secret_value or ENV_REF_PLACEHOLDER
 
-    if not secret_ref:
-        return RedirectResponse(url="/tenants", status_code=303)
-
     with closing(db_conn()) as conn:
         conn.execute(
             """
