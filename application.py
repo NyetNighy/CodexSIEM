@@ -641,8 +641,6 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str, info: str = "") -> str:
-    """Render a minimal dashboard when Jinja template rendering fails."""
-def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: int, signin_count: int, alert_count: int, query: str, error: str) -> str:
     safe_rows = []
     for row in rows:
         safe_rows.append(
@@ -671,13 +669,10 @@ def _dashboard_fallback_html(request: Request, rows: List[Any], tenant_count: in
         + "<table border='1' cellpadding='6' cellspacing='0'><thead><tr><th>Alert Time</th><th>Customer</th><th>Tenant</th><th>User</th><th>IP</th><th>Application</th><th>Severity</th><th>Reason</th></tr></thead><tbody>"
         + rows_html
         + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p><form method='post' action='/check-updates'><button type='submit'>Check GitHub Updates</button></form></body></html>"
-        + "</tbody></table><p><a href='/tenants'>Connect M365 Tenant</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
-        + "</tbody></table><p><a href='/tenants'>Manage Tenants</a> | <a href='/users'>Manage Users</a> | <a href='/audit'>Audit Logs</a></p></body></html>"
     )
 
 
 def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
-    """Render tenant management fallback HTML when templates are unavailable."""
     body_rows = []
     for t in tenants:
         body_rows.append(
@@ -720,7 +715,6 @@ def _tenants_fallback_html(request: Request, tenants: List[Any]) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, q: str = "", error: str = "", info: str = "") -> HTMLResponse:
-async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLResponse:
     auth_redirect = require_login(request)
     if auth_redirect:
         return auth_redirect
@@ -777,7 +771,6 @@ async def dashboard(request: Request, q: str = "", error: str = "") -> HTMLRespo
         LOGGER.exception("Failed to render dashboard.html; returning fallback dashboard HTML")
         return HTMLResponse(
             _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error, info),
-            _dashboard_fallback_html(request, rows, tenant_count, signin_count, alert_count, query, error),
             status_code=200,
         )
 
@@ -905,7 +898,6 @@ async def create_tenant(
     client_id: str = Form(...),
     client_secret_ref: str = Form(""),
     client_secret: str = Form(""),
-    client_secret_ref: str = Form(...),
 ) -> RedirectResponse:
     auth_redirect = require_manage_access(request)
     if auth_redirect:
