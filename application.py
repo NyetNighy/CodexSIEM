@@ -873,7 +873,6 @@ async def tenant_page(request: Request) -> HTMLResponse:
             """,
             (ENV_REF_PLACEHOLDER,),
         ).fetchall()
-        tenants = conn.execute("SELECT name, customer_name, tenant_id, client_id, client_secret_ref, created_at FROM tenants ORDER BY customer_name ASC, name ASC").fetchall()
     try:
         return templates.TemplateResponse(
             "tenants.html",
@@ -920,7 +919,6 @@ async def create_tenant(
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), secret_to_store, secret_ref, utc_now_iso()),
-            (name.strip(), customer_name.strip() or "Unassigned", tenant_id.strip(), client_id.strip(), ENV_REF_PLACEHOLDER, secret_ref, utc_now_iso()),
         )
         conn.commit()
 
